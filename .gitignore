@@ -12,4 +12,12 @@
 *.brf
 __pycache__
 eps/
-
+*.swp
+*target/
+*.ppm
+*.png
+*.bmp
+*.obj
+*.mtl
+*.binary
+*.mp4
