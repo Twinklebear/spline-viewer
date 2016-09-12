@@ -74,33 +74,33 @@ impl ImGuiSupport {
                 let pressed = state == ElementState::Pressed;
                 match code {
                     Some(VirtualKeyCode::Tab) => self.imgui.set_key(0, pressed),
-                        Some(VirtualKeyCode::Left) => self.imgui.set_key(1, pressed),
-                        Some(VirtualKeyCode::Right) => self.imgui.set_key(2, pressed),
-                        Some(VirtualKeyCode::Up) => self.imgui.set_key(3, pressed),
-                        Some(VirtualKeyCode::Down) => self.imgui.set_key(4, pressed),
-                        Some(VirtualKeyCode::PageUp) => self.imgui.set_key(5, pressed),
-                        Some(VirtualKeyCode::PageDown) => self.imgui.set_key(6, pressed),
-                        Some(VirtualKeyCode::Home) => self.imgui.set_key(7, pressed),
-                        Some(VirtualKeyCode::End) => self.imgui.set_key(8, pressed),
-                        Some(VirtualKeyCode::Delete) => self.imgui.set_key(9, pressed),
-                        Some(VirtualKeyCode::Back) => self.imgui.set_key(10, pressed),
-                        Some(VirtualKeyCode::Return) => self.imgui.set_key(11, pressed),
-                        Some(VirtualKeyCode::Escape) => self.imgui.set_key(12, pressed),
-                        Some(VirtualKeyCode::A) => self.imgui.set_key(13, pressed),
-                        Some(VirtualKeyCode::C) => self.imgui.set_key(14, pressed),
-                        Some(VirtualKeyCode::V) => self.imgui.set_key(15, pressed),
-                        Some(VirtualKeyCode::X) => self.imgui.set_key(16, pressed),
-                        Some(VirtualKeyCode::Y) => self.imgui.set_key(17, pressed),
-                        Some(VirtualKeyCode::Z) => self.imgui.set_key(18, pressed),
-                        Some(VirtualKeyCode::LControl) | Some(VirtualKeyCode::RControl) =>
-                            self.imgui.set_key_ctrl(pressed),
-                        Some(VirtualKeyCode::LShift) | Some(VirtualKeyCode::RShift) =>
-                            self.imgui.set_key_shift(pressed),
-                        Some(VirtualKeyCode::LAlt) | Some(VirtualKeyCode::RAlt) =>
-                            self.imgui.set_key_alt(pressed),
-                        Some(VirtualKeyCode::LWin) | Some(VirtualKeyCode::RWin) =>
-                            self.imgui.set_key_super(pressed),
-                        _ => {},
+                    Some(VirtualKeyCode::Left) => self.imgui.set_key(1, pressed),
+                    Some(VirtualKeyCode::Right) => self.imgui.set_key(2, pressed),
+                    Some(VirtualKeyCode::Up) => self.imgui.set_key(3, pressed),
+                    Some(VirtualKeyCode::Down) => self.imgui.set_key(4, pressed),
+                    Some(VirtualKeyCode::PageUp) => self.imgui.set_key(5, pressed),
+                    Some(VirtualKeyCode::PageDown) => self.imgui.set_key(6, pressed),
+                    Some(VirtualKeyCode::Home) => self.imgui.set_key(7, pressed),
+                    Some(VirtualKeyCode::End) => self.imgui.set_key(8, pressed),
+                    Some(VirtualKeyCode::Delete) => self.imgui.set_key(9, pressed),
+                    Some(VirtualKeyCode::Back) => self.imgui.set_key(10, pressed),
+                    Some(VirtualKeyCode::Return) => self.imgui.set_key(11, pressed),
+                    Some(VirtualKeyCode::Escape) => self.imgui.set_key(12, pressed),
+                    Some(VirtualKeyCode::A) => self.imgui.set_key(13, pressed),
+                    Some(VirtualKeyCode::C) => self.imgui.set_key(14, pressed),
+                    Some(VirtualKeyCode::V) => self.imgui.set_key(15, pressed),
+                    Some(VirtualKeyCode::X) => self.imgui.set_key(16, pressed),
+                    Some(VirtualKeyCode::Y) => self.imgui.set_key(17, pressed),
+                    Some(VirtualKeyCode::Z) => self.imgui.set_key(18, pressed),
+                    Some(VirtualKeyCode::LControl) | Some(VirtualKeyCode::RControl) =>
+                        self.imgui.set_key_ctrl(pressed),
+                    Some(VirtualKeyCode::LShift) | Some(VirtualKeyCode::RShift) =>
+                        self.imgui.set_key_shift(pressed),
+                    Some(VirtualKeyCode::LAlt) | Some(VirtualKeyCode::RAlt) =>
+                        self.imgui.set_key_alt(pressed),
+                    Some(VirtualKeyCode::LWin) | Some(VirtualKeyCode::RWin) =>
+                        self.imgui.set_key_super(pressed),
+                    _ => {},
                 }
             },
             Event::MouseMoved(x, y) => self.mouse_pos = (x, y),
@@ -136,6 +136,13 @@ fn main() {
             imgui.update_event(&e);
             match e {
                 glutin::Event::Closed => break 'outer,
+                Event::KeyboardInput(state, _, code) => {
+                    let pressed = state == ElementState::Pressed;
+                    match code {
+                        Some(VirtualKeyCode::Escape) if pressed => break 'outer,
+                        _ => {}
+                    }
+                }
                 _ => {}
             }
         }
