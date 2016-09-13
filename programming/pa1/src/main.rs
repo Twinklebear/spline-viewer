@@ -128,6 +128,7 @@ fn main() {
     let display = glutin::WindowBuilder::new()
         .with_dimensions(1280, 720)
         .with_gl(target_gl_versions)
+        .with_gl_profile(glutin::GlProfile::Core)
         .with_title("CS6670 Programming Assignment 1 - Will Usher")
         .with_vsync()
         .build_glium().unwrap();
