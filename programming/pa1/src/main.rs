@@ -9,11 +9,10 @@ mod imgui_support;
 mod bezier;
 
 use std::ops::{Mul, Add};
-use std::iter;
 
-use glium::{DisplayBuild, Surface};
+use glium::{DisplayBuild, Surface, DrawParameters};
 use glium::vertex::VertexBuffer;
-use glium::index::{IndicesSource, NoIndices, PrimitiveType};
+use glium::index::{NoIndices, PrimitiveType};
 use glium::glutin::{self, ElementState, Event, MouseButton, VirtualKeyCode};
 
 use imgui_support::ImGuiSupport;
@@ -28,6 +27,8 @@ impl Point {
         Point { pos: [x, y] }
     }
 }
+implement_vertex!(Point, pos);
+
 impl Mul<f32> for Point {
     type Output = Point;
     fn mul(self, rhs: f32) -> Point {
@@ -38,47 +39,6 @@ impl Add for Point {
     type Output = Point;
     fn add(self, rhs: Point) -> Point {
         Point { pos: [self.pos[0] + rhs.pos[0], self.pos[1] + rhs.pos[1]] }
-    }
-}
-
-implement_vertex!(Point, pos);
-
-/// Evaluate the Bezier curve and plot it to the image buffer passed
-fn plot_2d(spline: &Bezier<Point>, plot: &mut [u8], plot_dim: (usize, usize), scale: (f32, f32),
-           offset: (f32, f32)) {
-    let step_size = 0.001;
-    let t_range = (0.0, 1.0);
-    let steps = ((t_range.1 - t_range.0) / step_size) as usize;
-    for s in 0..steps + 1 {
-        let t = step_size * s as f32 + t_range.0;
-        let pt = spline.point(t);
-        let ix = ((pt.pos[0] + offset.0) * scale.0) as isize;
-        let iy = ((pt.pos[1] + offset.1) * scale.1) as isize;
-        for y in iy - 1..iy + 1 {
-            for x in ix - 1..ix + 1 {
-                if y >= 0 && y < plot_dim.1 as isize && x >= 0 && x < plot_dim.0 as isize {
-                    let px = (plot_dim.1 - 1 - y as usize) * plot_dim.0 * 3 + x as usize * 3;
-                    for i in 0..3 {
-                        plot[px + i] = 0;
-                    }
-                }
-            }
-        }
-    }
-    // Draw the control points
-    for pt in spline.control_points() {
-        let ix = ((pt.pos[0] + offset.0) * scale.0) as isize;
-        let iy = ((pt.pos[1] + offset.1) * scale.1) as isize;
-        for y in iy - 3..iy + 3 {
-            for x in ix - 3..ix + 3 {
-                if y >= 0 && y < plot_dim.1 as isize && x >= 0 && x < plot_dim.0 as isize {
-                    let px = (plot_dim.1 - 1 - y as usize) * plot_dim.0 * 3 + x as usize * 3;
-                    plot[px] = 255;
-                    plot[px + 1] = 0;
-                    plot[px + 2] = 0;
-                }
-            }
-        }
     }
 }
 
@@ -103,26 +63,22 @@ fn main() {
     let mut imgui = ImGuiSupport::init();
     let mut imgui_renderer = imgui::glium_renderer::Renderer::init(&mut imgui.imgui, &display).unwrap();
 
-    let points = vec![Point::new(1.0, 0.0), Point::new(1.0, 1.0), Point::new(0.0, 1.0)];
-
-    /*
-    let plot_dim = (800, 800);
-    let scale = (plot_dim.0 as f32 / 4.0, plot_dim.1 as f32 / 4.0);
-    let offset = (2.0, 2.0);
-
-    let mut plot: Vec<_> = iter::repeat(255u8).take(plot_dim.0 * plot_dim.1 * 3).collect();
-    let curve = Bezier::new(points);
-    plot_2d(&curve, &mut plot[..], plot_dim, scale, offset);
-    match image::save_buffer("test.png", &plot[..], plot_dim.0 as u32, plot_dim.1 as u32, image::RGB(8)) {
-        Ok(_) => println!("Test B-spline saved to test.png"),
-        Err(e) => println!("Error saving test.png,  {}", e),
+    let control_points = vec![Point::new(1.0, 0.0), Point::new(1.0, 1.0), Point::new(0.0, 1.0)];
+    let curve = Bezier::new(control_points);
+    let step_size = 0.1;
+    let t_range = (0.0, 1.0);
+    let steps = ((t_range.1 - t_range.0) / step_size) as usize;
+    let mut points = Vec::with_capacity(steps);
+    for s in 0..steps + 1 {
+        let t = step_size * s as f32 + t_range.0;
+        points.push(curve.point(t));
     }
-    */
 
     let projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
                                    height as f32 / 200.0, -1.0, -10.0);
     let vertex_buffer = VertexBuffer::new(&display, &points[..]).unwrap();
     let indices = NoIndices(PrimitiveType::LineStrip);
+    let draw_params = Default::default();
     let shader_program = program!(&display,
         330 => {
             vertex: "
@@ -170,7 +126,7 @@ fn main() {
         };
 
         // Draw the control points
-        target.draw(&vertex_buffer, &indices, &shader_program, &uniforms, &Default::default()).unwrap();
+        target.draw(&vertex_buffer, &indices, &shader_program, &uniforms, &draw_params).unwrap();
 
         let ui = imgui.render_ui(&display);
         ui.window(im_str!("Control Panel"))
