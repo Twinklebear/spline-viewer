@@ -2,7 +2,6 @@
 extern crate glium;
 #[macro_use]
 extern crate imgui;
-extern crate image;
 extern crate cgmath;
 
 mod imgui_support;
