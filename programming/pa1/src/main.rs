@@ -12,6 +12,8 @@ use std::ops::{Mul, Add};
 use std::iter;
 
 use glium::{DisplayBuild, Surface};
+use glium::vertex::VertexBuffer;
+use glium::index::{IndicesSource, NoIndices, PrimitiveType};
 use glium::glutin::{self, ElementState, Event, MouseButton, VirtualKeyCode};
 
 use imgui_support::ImGuiSupport;
@@ -19,26 +21,27 @@ use bezier::Bezier;
 
 #[derive(Copy, Clone, Debug)]
 struct Point {
-    x: f32,
-    y: f32,
+    pos: [f32; 2],
 }
 impl Point {
     fn new(x: f32, y: f32) -> Point {
-        Point { x: x, y: y }
+        Point { pos: [x, y] }
     }
 }
 impl Mul<f32> for Point {
     type Output = Point;
     fn mul(self, rhs: f32) -> Point {
-        Point { x: self.x * rhs, y: self.y * rhs }
+        Point { pos: [self.pos[0] * rhs, self.pos[1] * rhs] }
     }
 }
 impl Add for Point {
     type Output = Point;
     fn add(self, rhs: Point) -> Point {
-        Point { x: self.x + rhs.x, y: self.y + rhs.y }
+        Point { pos: [self.pos[0] + rhs.pos[0], self.pos[1] + rhs.pos[1]] }
     }
 }
+
+implement_vertex!(Point, pos);
 
 /// Evaluate the Bezier curve and plot it to the image buffer passed
 fn plot_2d(spline: &Bezier<Point>, plot: &mut [u8], plot_dim: (usize, usize), scale: (f32, f32),
@@ -49,8 +52,8 @@ fn plot_2d(spline: &Bezier<Point>, plot: &mut [u8], plot_dim: (usize, usize), sc
     for s in 0..steps + 1 {
         let t = step_size * s as f32 + t_range.0;
         let pt = spline.point(t);
-        let ix = ((pt.x + offset.0) * scale.0) as isize;
-        let iy = ((pt.y + offset.1) * scale.1) as isize;
+        let ix = ((pt.pos[0] + offset.0) * scale.0) as isize;
+        let iy = ((pt.pos[1] + offset.1) * scale.1) as isize;
         for y in iy - 1..iy + 1 {
             for x in ix - 1..ix + 1 {
                 if y >= 0 && y < plot_dim.1 as isize && x >= 0 && x < plot_dim.0 as isize {
@@ -64,8 +67,8 @@ fn plot_2d(spline: &Bezier<Point>, plot: &mut [u8], plot_dim: (usize, usize), sc
     }
     // Draw the control points
     for pt in spline.control_points() {
-        let ix = ((pt.x + offset.0) * scale.0) as isize;
-        let iy = ((pt.y + offset.1) * scale.1) as isize;
+        let ix = ((pt.pos[0] + offset.0) * scale.0) as isize;
+        let iy = ((pt.pos[1] + offset.1) * scale.1) as isize;
         for y in iy - 3..iy + 3 {
             for x in ix - 3..ix + 3 {
                 if y >= 0 && y < plot_dim.1 as isize && x >= 0 && x < plot_dim.0 as isize {
@@ -84,8 +87,10 @@ fn main() {
         opengl_version: (3, 3),
         opengles_version: (3, 2),
     };
+    let width = 1280;
+    let height = 720;
     let display = glutin::WindowBuilder::new()
-        .with_dimensions(1280, 720)
+        .with_dimensions(width, height)
         .with_gl(target_gl_versions)
         .with_gl_profile(glutin::GlProfile::Core)
         .with_title("CS6670 Programming Assignment 1 - Will Usher")
@@ -100,6 +105,7 @@ fn main() {
 
     let points = vec![Point::new(1.0, 0.0), Point::new(1.0, 1.0), Point::new(0.0, 1.0)];
 
+    /*
     let plot_dim = (800, 800);
     let scale = (plot_dim.0 as f32 / 4.0, plot_dim.1 as f32 / 4.0);
     let offset = (2.0, 2.0);
@@ -111,6 +117,31 @@ fn main() {
         Ok(_) => println!("Test B-spline saved to test.png"),
         Err(e) => println!("Error saving test.png,  {}", e),
     }
+    */
+
+    let projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
+                                   height as f32 / 200.0, -1.0, -10.0);
+    let vertex_buffer = VertexBuffer::new(&display, &points[..]).unwrap();
+    let indices = NoIndices(PrimitiveType::LineStrip);
+    let shader_program = program!(&display,
+        330 => {
+            vertex: "
+                #version 330 core
+                uniform mat4 projection;
+                in vec2 pos;
+                void main(void) {
+                    gl_Position = projection * vec4(pos, 2.0, 1.0);
+                }
+                ",
+            fragment: "
+                #version 330 core
+                out vec4 color;
+                void main(void) {
+                    color = vec4(0.7, 0.7, 0.1, 1);
+                }
+            "
+        },
+    ).unwrap();
 
 
     'outer: loop {
@@ -132,6 +163,14 @@ fn main() {
 
         let mut target = display.draw();
         target.clear_color(0.2, 0.2, 0.2, 1.0);
+
+        let proj: [[f32; 4]; 4] = projection.into();
+        let uniforms = uniform! {
+            projection: proj,
+        };
+
+        // Draw the control points
+        target.draw(&vertex_buffer, &indices, &shader_program, &uniforms, &Default::default()).unwrap();
 
         let ui = imgui.render_ui(&display);
         ui.window(im_str!("Control Panel"))
