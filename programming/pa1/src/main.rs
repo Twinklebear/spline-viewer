@@ -121,8 +121,13 @@ impl ImGuiSupport {
 }
 
 fn main() {
+    let target_gl_versions = glutin::GlRequest::GlThenGles {
+        opengl_version: (3, 3),
+        opengles_version: (3, 2),
+    };
     let display = glutin::WindowBuilder::new()
         .with_dimensions(1280, 720)
+        .with_gl(target_gl_versions)
         .with_title("CS6670 Programming Assignment 1 - Will Usher")
         .with_vsync()
         .build_glium().unwrap();
