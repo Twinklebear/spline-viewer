@@ -7,4 +7,7 @@ authors = ["Will Usher <willusher.life@gmail.com>"]
 glium = "0.15.0"
 imgui = "0.0.10"
 cgmath = "0.11.0"
+regex = "0.1.77"
+docopt = "0.6.83"
+rustc-serialize = "0.3.19"
 

@@ -3,17 +3,26 @@ extern crate glium;
 #[macro_use]
 extern crate imgui;
 extern crate cgmath;
+extern crate docopt;
+extern crate rustc_serialize;
+extern crate regex;
 
 mod imgui_support;
 mod bezier;
 mod camera2d;
 
 use std::ops::{Mul, Add};
+use std::fs::File;
+use std::path::Path;
+use std::io::prelude::*;
+use std::io::BufReader;
 
 use glium::{DisplayBuild, Surface, DrawParameters};
 use glium::vertex::VertexBuffer;
 use glium::index::{NoIndices, PrimitiveType};
-use glium::glutin::{self, ElementState, Event, MouseButton, VirtualKeyCode};
+use glium::glutin::{self, ElementState, Event, VirtualKeyCode};
+use docopt::Docopt;
+use regex::Regex;
 
 use imgui_support::ImGuiSupport;
 use bezier::Bezier;
@@ -43,7 +52,88 @@ impl Add for Point {
     }
 }
 
+fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) => panic!("Failed to open file: {}", e),
+    };
+    let reader = BufReader::new(file);
+    let curve_start = Regex::new("(P|Q), *(\\d+)").unwrap();
+    let mut curves = Vec::new();
+    let mut points = Vec::new();
+    let mut num_curves = 0;
+    let mut rational_points = false;
+    for line in reader.lines() {
+        let l = line.unwrap();
+        // Skip empty lines and comments
+        if l.is_empty() || l.starts_with("#") {
+            println!("skipping comment or empty line '{}'", l);
+            continue;
+        }
+        if num_curves == 0 {
+            num_curves = l.parse().unwrap();
+            println!("Expecting {} curve(s) from the file", num_curves);
+            continue;
+        }
+        if let Some(caps) = curve_start.captures(&l[..]) {
+            // If we had a previous curve we're done parsing it
+            if !points.is_empty() {
+                println!("Points = {:#?}", points);
+                curves.push(Bezier::new(points));
+                points = Vec::new();
+            }
+
+            if caps.at(1) == Some("Q") {
+                rational_points = true;
+            } else {
+                rational_points = false;
+            }
+            println!("Expecting {} control points for curve #{} in file",
+                     caps.at(2).unwrap(), curves.len());
+            continue;
+        }
+        let coords: Vec<_> = l.split(',').collect();
+        assert!(coords.len() >= 2);
+        let mut x = coords[0].trim().parse().unwrap();
+        let mut y = coords[1].trim().parse().unwrap();
+        if rational_points {
+            //let w = coords[2].trim().parse().unwrap();
+            //x /= w;
+            //y /= w;
+        }
+        points.push(Point::new(x, y));
+    }
+    // Save the last curve we may have parsed
+    if !points.is_empty() {
+        println!("Points = {:#?}", points);
+        curves.push(Bezier::new(points));
+    }
+    curves
+}
+
+const USAGE: &'static str = "
+Usage:
+    bezier [<file>...]
+    bezier (-h | --help)
+
+Options:
+    -h, --help      Show this message.
+";
+
+#[derive(RustcDecodable)]
+struct Args {
+    arg_file: Option<Vec<String>>,
+}
+
 fn main() {
+    let args: Args = Docopt::new(USAGE).and_then(|d| d.decode()).unwrap_or_else(|e| e.exit());
+    let mut curves = Vec::new();
+    if let Some(files) = args.arg_file {
+        for f in files {
+            curves = import(f);
+        }
+    }
+
     let target_gl_versions = glutin::GlRequest::GlThenGles {
         opengl_version: (3, 3),
         opengles_version: (3, 2),
@@ -64,17 +154,27 @@ fn main() {
     let mut imgui = ImGuiSupport::init();
     let mut imgui_renderer = imgui::glium_renderer::Renderer::init(&mut imgui.imgui, &display).unwrap();
 
-    let control_points = vec![Point::new(1.0, 0.0), Point::new(1.0, 1.0), Point::new(0.0, 1.0)];
-    let control_points_vbo = VertexBuffer::new(&display, &control_points[..]).unwrap();
-    // Setup the curve
-    let curve = Bezier::new(control_points);
-    let step_size = 0.1;
+    let mut control_points_vbo;
+    let step_size = 0.01;
     let t_range = (0.0, 1.0);
     let steps = ((t_range.1 - t_range.0) / step_size) as usize;
     let mut points = Vec::with_capacity(steps);
-    for s in 0..steps + 1 {
-        let t = step_size * s as f32 + t_range.0;
-        points.push(curve.point(t));
+    if curves.is_empty() {
+        // Setup the curve
+        let control_points = vec![Point::new(1.0, 0.0), Point::new(1.0, 1.0), Point::new(0.0, 1.0)];
+        let curve = Bezier::new(control_points);
+        control_points_vbo = VertexBuffer::new(&display, &curve.control_points[..]).unwrap();
+        for s in 0..steps + 1 {
+            let t = step_size * s as f32 + t_range.0;
+            points.push(curve.point(t));
+        }
+    } else {
+        control_points_vbo = VertexBuffer::new(&display, &curves[0].control_points[..]).unwrap();
+        // Just draw the first one for now
+        for s in 0..steps + 1 {
+            let t = step_size * s as f32 + t_range.0;
+            points.push(curves[0].point(t));
+        }
     }
 
     let mut camera = Camera2d::new();
@@ -128,7 +228,7 @@ fn main() {
             imgui.update_event(&e);
             if imgui.mouse_wheel != 0.0 {
                 let fbscale = imgui.imgui.display_framebuffer_scale();
-                camera.zoom(imgui.mouse_wheel / (fbscale.1 * 2.0));
+                camera.zoom(imgui.mouse_wheel / (fbscale.1 * 5.0));
             }
         }
         imgui.update_mouse();

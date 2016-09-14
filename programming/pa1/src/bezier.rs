@@ -35,7 +35,7 @@ impl<T: Mul<f32, Output = T> + Add<Output = T> + Copy> Interpolate for T {
 #[derive(Clone, Debug)]
 pub struct Bezier<T: Interpolate + Copy> {
     /// Control points for the curve
-    control_points: Vec<T>,
+    pub control_points: Vec<T>,
 }
 
 impl<T: Interpolate + Copy> Bezier<T> {
