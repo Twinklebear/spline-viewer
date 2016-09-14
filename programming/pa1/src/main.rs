@@ -139,8 +139,8 @@ fn main() {
         opengl_version: (3, 3),
         opengles_version: (3, 2),
     };
-    let width = 1280;
-    let height = 720;
+    let mut width = 1280;
+    let mut height = 720;
     let display = glutin::WindowBuilder::new()
         .with_dimensions(width, height)
         .with_gl(target_gl_versions)
@@ -179,7 +179,7 @@ fn main() {
     }
 
     let mut camera = Camera2d::new();
-    let projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
+    let mut projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
                                    height as f32 / 200.0, -1.0, -10.0);
     let curve_points_vbo = VertexBuffer::new(&display, &points[..]).unwrap();
     let draw_params = DrawParameters {
@@ -223,6 +223,12 @@ fn main() {
                     let delta = ((x - imgui.mouse_pos.0) as f32 / (fbscale.0 * 100.0),
                                  -(y - imgui.mouse_pos.1) as f32 / (fbscale.1 * 100.0));
                     camera.translate(delta.0, delta.1);
+                },
+                Event::Resized(w, h) => {
+                    width = w;
+                    height = h;
+                    projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0,
+                                               height as f32 / -200.0, height as f32 / 200.0, -1.0, -10.0);
                 },
                 _ => {}
             }
