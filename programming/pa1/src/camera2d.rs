@@ -16,13 +16,13 @@ impl Camera2d {
     pub fn zoom(&mut self, z: f32) {
         self.zoom += z;
         // Only allow up to 10x zoom out
-        if self.zoom < 0.001 {
-            self.zoom = 0.001;
+        if self.zoom < 0.01 {
+            self.zoom = 0.01;
         }
     }
     pub fn get_mat4(&self) -> Matrix4<f32> {
-        Matrix4::from_translation(self.position)
-            * Matrix4::from_nonuniform_scale(self.zoom, self.zoom, 1.0)
+        Matrix4::from_nonuniform_scale(self.zoom, self.zoom, 1.0)
+            * Matrix4::from_translation(self.position)
     }
 }
 

@@ -85,11 +85,13 @@ fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
 
             if caps.at(1) == Some("Q") {
                 rational_points = true;
+                println!("Expecting {} control points for rational curve #{} in file",
+                         caps.at(2).unwrap(), curves.len());
             } else {
                 rational_points = false;
+                println!("Expecting {} control points for polynomial curve #{} in file",
+                         caps.at(2).unwrap(), curves.len());
             }
-            println!("Expecting {} control points for curve #{} in file",
-                     caps.at(2).unwrap(), curves.len());
             continue;
         }
         let coords: Vec<_> = l.split(',').collect();
