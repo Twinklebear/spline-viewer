@@ -198,9 +198,10 @@ fn main() {
                 ",
             fragment: "
                 #version 330 core
+                uniform vec3 pcolor;
                 out vec4 color;
                 void main(void) {
-                    color = vec4(0.7, 0.7, 0.1, 1);
+                    color = vec4(pcolor, 1);
                 }
             "
         },
@@ -247,13 +248,22 @@ fn main() {
         let uniforms = uniform! {
             projection: proj,
             view: cam,
+            pcolor: [0.7f32, 0.7f32, 0.1f32],
         };
 
         // Draw the curve
         target.draw(&curve_points_vbo, &NoIndices(PrimitiveType::LineStrip),
                     &shader_program, &uniforms, &draw_params).unwrap();
+        let uniforms = uniform! {
+            projection: proj,
+            view: cam,
+            pcolor: [1.0f32, 1.0f32, 1.0f32],
+        };
         // Draw the control points
         target.draw(&control_points_vbo, &NoIndices(PrimitiveType::Points),
+                    &shader_program, &uniforms, &draw_params).unwrap();
+        // Draw the control polygon
+        target.draw(&control_points_vbo, &NoIndices(PrimitiveType::LineStrip),
                     &shader_program, &uniforms, &draw_params).unwrap();
 
         let ui = imgui.render_ui(&display);
