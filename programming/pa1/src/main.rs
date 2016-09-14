@@ -105,7 +105,6 @@ fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
     }
     // Save the last curve we may have parsed
     if !points.is_empty() {
-        println!("Points = {:#?}", points);
         curves.push(Bezier::new(points));
     }
     curves
@@ -154,7 +153,7 @@ fn main() {
     let mut imgui = ImGuiSupport::init();
     let mut imgui_renderer = imgui::glium_renderer::Renderer::init(&mut imgui.imgui, &display).unwrap();
 
-    let mut control_points_vbo;
+    let control_points_vbo;
     let step_size = 0.01;
     let t_range = (0.0, 1.0);
     let steps = ((t_range.1 - t_range.0) / step_size) as usize;
@@ -228,7 +227,7 @@ fn main() {
             imgui.update_event(&e);
             if imgui.mouse_wheel != 0.0 {
                 let fbscale = imgui.imgui.display_framebuffer_scale();
-                camera.zoom(imgui.mouse_wheel / (fbscale.1 * 5.0));
+                camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
             }
         }
         imgui.update_mouse();
@@ -255,9 +254,10 @@ fn main() {
             .size((300.0, 100.0), imgui::ImGuiSetCond_FirstUseEver)
             .build(|| {
                 let fps = ui.framerate();
+                let frame_time = 1000.0 / fps;
                 let gl_version = display.get_opengl_version();
                 let glsl_version = display.get_supported_glsl_version();
-                ui.text(im_str!("Framerate: {:.3} FPS ({:.3} ms)", fps, 1000.0 / fps));
+                ui.text(im_str!("Framerate: {:.3} FPS ({:.3} ms)", fps, frame_time));
                 ui.text(im_str!("OpenGL Version: {}.{}", gl_version.1, gl_version.2));
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
             });
