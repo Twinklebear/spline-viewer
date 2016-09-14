@@ -3,6 +3,7 @@ use std::time::Instant;
 use glium;
 use glium::glutin::{ElementState, Event, MouseButton, MouseScrollDelta, VirtualKeyCode, TouchPhase};
 use imgui::{self, ImGui, ImGuiKey};
+use imgui_sys;
 
 /// Manages giving ImGui key presses, mouse motion and so on
 pub struct ImGuiSupport {
@@ -62,6 +63,9 @@ impl ImGuiSupport {
                                   false, false]);
         self.imgui.set_mouse_wheel(self.mouse_wheel / scale.1);
         self.mouse_wheel = 0.0;
+    }
+    pub fn mouse_hovering_any_window(&self) -> bool {
+        unsafe { imgui_sys::igIsMouseHoveringAnyWindow() }
     }
     pub fn update_event(&mut self, e: &Event) {
         match *e {

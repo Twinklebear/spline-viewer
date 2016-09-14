@@ -6,6 +6,7 @@ authors = ["Will Usher <willusher.life@gmail.com>"]
 [dependencies]
 glium = "0.15.0"
 imgui = "0.0.10"
+imgui-sys = "0.0.10"
 cgmath = "0.11.0"
 regex = "0.1.77"
 docopt = "0.6.83"

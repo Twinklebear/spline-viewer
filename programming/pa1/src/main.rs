@@ -2,6 +2,7 @@
 extern crate glium;
 #[macro_use]
 extern crate imgui;
+extern crate imgui_sys;
 extern crate cgmath;
 extern crate docopt;
 extern crate rustc_serialize;
@@ -217,7 +218,7 @@ fn main() {
                         _ => {}
                     }
                 },
-                Event::MouseMoved(x, y) if imgui.mouse_pressed.0 => {
+                Event::MouseMoved(x, y) if imgui.mouse_pressed.0 && !imgui.mouse_hovering_any_window() => {
                     let fbscale = imgui.imgui.display_framebuffer_scale();
                     let delta = ((x - imgui.mouse_pos.0) as f32 / (fbscale.0 * 100.0),
                                  -(y - imgui.mouse_pos.1) as f32 / (fbscale.1 * 100.0));
@@ -232,7 +233,7 @@ fn main() {
                 _ => {}
             }
             imgui.update_event(&e);
-            if imgui.mouse_wheel != 0.0 {
+            if imgui.mouse_wheel != 0.0 && !imgui.mouse_hovering_any_window() {
                 let fbscale = imgui.imgui.display_framebuffer_scale();
                 camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
             }

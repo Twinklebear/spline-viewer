@@ -6,6 +6,7 @@ dependencies = [
  "docopt 0.6.83 (registry+https://github.com/rust-lang/crates.io-index)",
  "glium 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "imgui 0.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "imgui-sys 0.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.77 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
