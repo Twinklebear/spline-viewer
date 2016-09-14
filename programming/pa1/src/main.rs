@@ -68,7 +68,6 @@ fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
         let l = line.unwrap();
         // Skip empty lines and comments
         if l.is_empty() || l.starts_with("#") {
-            println!("skipping comment or empty line '{}'", l);
             continue;
         }
         if num_curves == 0 {
