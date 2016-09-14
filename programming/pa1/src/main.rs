@@ -65,6 +65,8 @@ fn main() {
     let mut imgui_renderer = imgui::glium_renderer::Renderer::init(&mut imgui.imgui, &display).unwrap();
 
     let control_points = vec![Point::new(1.0, 0.0), Point::new(1.0, 1.0), Point::new(0.0, 1.0)];
+    let control_points_vbo = VertexBuffer::new(&display, &control_points[..]).unwrap();
+    // Setup the curve
     let curve = Bezier::new(control_points);
     let step_size = 0.1;
     let t_range = (0.0, 1.0);
@@ -78,9 +80,11 @@ fn main() {
     let mut camera = Camera2d::new();
     let projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
                                    height as f32 / 200.0, -1.0, -10.0);
-    let vertex_buffer = VertexBuffer::new(&display, &points[..]).unwrap();
-    let indices = NoIndices(PrimitiveType::LineStrip);
-    let draw_params = Default::default();
+    let curve_points_vbo = VertexBuffer::new(&display, &points[..]).unwrap();
+    let draw_params = DrawParameters {
+        point_size: Some(4.0),
+        .. Default::default()
+    };
     let shader_program = program!(&display,
         330 => {
             vertex: "
@@ -110,8 +114,6 @@ fn main() {
                     let pressed = state == ElementState::Pressed;
                     match code {
                         Some(VirtualKeyCode::Escape) if pressed => break 'outer,
-                        Some(VirtualKeyCode::W) if pressed => camera.zoom(-0.01),
-                        Some(VirtualKeyCode::S) if pressed => camera.zoom(0.01),
                         _ => {}
                     }
                 },
@@ -141,8 +143,12 @@ fn main() {
             view: cam,
         };
 
+        // Draw the curve
+        target.draw(&curve_points_vbo, &NoIndices(PrimitiveType::LineStrip),
+                    &shader_program, &uniforms, &draw_params).unwrap();
         // Draw the control points
-        target.draw(&vertex_buffer, &indices, &shader_program, &uniforms, &draw_params).unwrap();
+        target.draw(&control_points_vbo, &NoIndices(PrimitiveType::Points),
+                    &shader_program, &uniforms, &draw_params).unwrap();
 
         let ui = imgui.render_ui(&display);
         ui.window(im_str!("Control Panel"))

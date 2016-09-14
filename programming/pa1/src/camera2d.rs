@@ -2,8 +2,8 @@ use cgmath::{Vector3, vec3, Matrix4};
 
 /// Camera for 2D scenes which can zoom in an out and pan around
 pub struct Camera2d {
-    position: Vector3<f32>,
-    zoom: f32
+    pub position: Vector3<f32>,
+    pub zoom: f32
 }
 
 impl Camera2d {
