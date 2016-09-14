@@ -78,7 +78,6 @@ fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
         if let Some(caps) = curve_start.captures(&l[..]) {
             // If we had a previous curve we're done parsing it
             if !points.is_empty() {
-                println!("Points = {:#?}", points);
                 curves.push(Bezier::new(points));
                 points = Vec::new();
             }
