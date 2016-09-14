@@ -6,6 +6,7 @@ extern crate cgmath;
 
 mod imgui_support;
 mod bezier;
+mod camera2d;
 
 use std::ops::{Mul, Add};
 
@@ -16,6 +17,7 @@ use glium::glutin::{self, ElementState, Event, MouseButton, VirtualKeyCode};
 
 use imgui_support::ImGuiSupport;
 use bezier::Bezier;
+use camera2d::Camera2d;
 
 #[derive(Copy, Clone, Debug)]
 struct Point {
@@ -73,6 +75,7 @@ fn main() {
         points.push(curve.point(t));
     }
 
+    let mut camera = Camera2d::new();
     let projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
                                    height as f32 / 200.0, -1.0, -10.0);
     let vertex_buffer = VertexBuffer::new(&display, &points[..]).unwrap();
@@ -82,10 +85,11 @@ fn main() {
         330 => {
             vertex: "
                 #version 330 core
+                uniform mat4 view;
                 uniform mat4 projection;
                 in vec2 pos;
                 void main(void) {
-                    gl_Position = projection * vec4(pos, 2.0, 1.0);
+                    gl_Position = projection * view * vec4(pos, 2.0, 1.0);
                 }
                 ",
             fragment: "
@@ -98,20 +102,31 @@ fn main() {
         },
     ).unwrap();
 
-
     'outer: loop {
         for e in display.poll_events() {
-            imgui.update_event(&e);
             match e {
                 glutin::Event::Closed => break 'outer,
                 Event::KeyboardInput(state, _, code) => {
                     let pressed = state == ElementState::Pressed;
                     match code {
                         Some(VirtualKeyCode::Escape) if pressed => break 'outer,
+                        Some(VirtualKeyCode::W) if pressed => camera.zoom(-0.01),
+                        Some(VirtualKeyCode::S) if pressed => camera.zoom(0.01),
                         _ => {}
                     }
-                }
+                },
+                Event::MouseMoved(x, y) if imgui.mouse_pressed.0 => {
+                    let fbscale = imgui.imgui.display_framebuffer_scale();
+                    let delta = ((x - imgui.mouse_pos.0) as f32 / (fbscale.0 * 100.0),
+                                 -(y - imgui.mouse_pos.1) as f32 / (fbscale.1 * 100.0));
+                    camera.translate(delta.0, delta.1);
+                },
                 _ => {}
+            }
+            imgui.update_event(&e);
+            if imgui.mouse_wheel != 0.0 {
+                let fbscale = imgui.imgui.display_framebuffer_scale();
+                camera.zoom(imgui.mouse_wheel / (fbscale.1 * 2.0));
             }
         }
         imgui.update_mouse();
@@ -119,9 +134,11 @@ fn main() {
         let mut target = display.draw();
         target.clear_color(0.2, 0.2, 0.2, 1.0);
 
+        let cam: [[f32; 4]; 4] = camera.get_mat4().into();
         let proj: [[f32; 4]; 4] = projection.into();
         let uniforms = uniform! {
             projection: proj,
+            view: cam,
         };
 
         // Draw the control points
