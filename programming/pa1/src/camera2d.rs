@@ -11,7 +11,7 @@ impl Camera2d {
         Camera2d { position: vec3(0.0, 0.0, 0.0), zoom: 1.0 }
     }
     pub fn translate(&mut self, x: f32, y: f32) {
-        self.position += vec3(x, y, 0.0);
+        self.position += vec3(x, y, 0.0) / self.zoom;
     }
     pub fn zoom(&mut self, z: f32) {
         self.zoom += z;
