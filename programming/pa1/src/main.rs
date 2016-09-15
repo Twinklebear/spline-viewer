@@ -241,14 +241,14 @@ fn main() {
         imgui.update_mouse();
 
         let mut target = display.draw();
-        target.clear_color(0.2, 0.2, 0.2, 1.0);
+        target.clear_color(0.1, 0.1, 0.1, 1.0);
 
         let cam: [[f32; 4]; 4] = camera.get_mat4().into();
         let proj: [[f32; 4]; 4] = projection.into();
         let uniforms = uniform! {
             projection: proj,
             view: cam,
-            pcolor: [0.7f32, 0.7f32, 0.1f32],
+            pcolor: [0.8f32, 0.8f32, 0.1f32],
         };
 
         // Draw the curve
@@ -257,7 +257,7 @@ fn main() {
         let uniforms = uniform! {
             projection: proj,
             view: cam,
-            pcolor: [1.0f32, 1.0f32, 1.0f32],
+            pcolor: [0.8f32, 0.8f32, 0.8f32],
         };
         // Draw the control points
         target.draw(&control_points_vbo, &NoIndices(PrimitiveType::Points),
