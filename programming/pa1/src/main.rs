@@ -12,21 +12,23 @@ mod imgui_support;
 mod bezier;
 mod camera2d;
 
-use std::ops::{Mul, Add};
+use std::ops::{Mul, Add, Sub};
 use std::fs::File;
 use std::path::Path;
 use std::io::prelude::*;
 use std::io::BufReader;
+use std::f32;
 
 use glium::{DisplayBuild, Surface, DrawParameters};
 use glium::vertex::VertexBuffer;
 use glium::index::{NoIndices, PrimitiveType};
 use glium::glutin::{self, ElementState, Event, VirtualKeyCode};
+use cgmath::{SquareMatrix, Transform};
 use docopt::Docopt;
 use regex::Regex;
 
 use imgui_support::ImGuiSupport;
-use bezier::Bezier;
+use bezier::{Bezier, ProjectToSegment};
 use camera2d::Camera2d;
 
 #[derive(Copy, Clone, Debug)]
@@ -36,6 +38,12 @@ struct Point {
 impl Point {
     fn new(x: f32, y: f32) -> Point {
         Point { pos: [x, y] }
+    }
+    fn dot(&self, a: &Point) -> f32 {
+        self.pos[0] * a.pos[0] + self.pos[1] * a.pos[1]
+    }
+    fn length(&self) -> f32 {
+        f32::sqrt(self.dot(&self))
     }
 }
 implement_vertex!(Point, pos);
@@ -50,6 +58,23 @@ impl Add for Point {
     type Output = Point;
     fn add(self, rhs: Point) -> Point {
         Point { pos: [self.pos[0] + rhs.pos[0], self.pos[1] + rhs.pos[1]] }
+    }
+}
+impl Sub for Point {
+    type Output = Point;
+    fn sub(self, rhs: Point) -> Point {
+        Point { pos: [self.pos[0] - rhs.pos[0], self.pos[1] - rhs.pos[1]] }
+    }
+}
+impl ProjectToSegment for Point {
+    fn project(&self, a: &Point, b: &Point) -> f32 {
+        let v = *b - *a;
+        let t = self.dot(&v);
+        let p = *a + v * t;
+        let d = (p - *self).length();
+        println!("PRojected {:?} on segment [{:?}, {:?}] to point {:?}, dist = {}",
+                 self, a, b, p, d);
+        d
     }
 }
 
@@ -169,6 +194,7 @@ fn main() {
             points.push(curve.point(t));
         }
     } else {
+        curves[0].insert_point(Point::new(0.5, 0.5));
         control_points_vbo = VertexBuffer::new(&display, &curves[0].control_points[..]).unwrap();
         // Just draw the first one for now
         for s in 0..steps + 1 {
@@ -236,6 +262,18 @@ fn main() {
             if imgui.mouse_wheel != 0.0 && !imgui.mouse_hovering_any_window() {
                 let fbscale = imgui.imgui.display_framebuffer_scale();
                 camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
+            }
+            if imgui.mouse_pressed.0 && !imgui.mouse_hovering_any_window() {
+                let unproj = (projection * camera.get_mat4()).invert().expect("Uninvertable proj * view!?");
+                // TODO: Don't fire this event if we're dragging? Or maybe just if a curve is
+                // selected don't drag??
+                println!("mouse at {:?}", imgui.mouse_pos);
+                let click_pos =
+                    cgmath::Point3::<f32>::new(2.0 * imgui.mouse_pos.0 as f32 / width as f32 - 1.0,
+                                               2.0 * (height as f32 - imgui.mouse_pos.1 as f32) / height as f32 - 1.0,
+                                               -1.0);
+                let pos = unproj.transform_point(click_pos);
+                println!("Mouse click at {:?}", pos);
             }
         }
         imgui.update_mouse();

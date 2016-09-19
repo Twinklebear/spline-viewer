@@ -2,7 +2,9 @@
 //! defined by a set of control points on any type that can be linearly interpolated.
 
 use std::ops::{Mul, Add};
+use std::fmt::Debug;
 use std::slice::Iter;
+use std::f32;
 
 /// The interpolate trait is used to linearly interpolate between two types (or in the
 /// case of Quaternions, spherically linearly interpolate). The B-spline curve uses this
@@ -30,15 +32,22 @@ impl<T: Mul<f32, Output = T> + Add<Output = T> + Copy> Interpolate for T {
     }
 }
 
+/// A trait for types that can be projected on to a line segment
+pub trait ProjectToSegment {
+    /// Should return the distance from the projected point on the segment
+    /// to self.
+    fn project(&self, a: &Self, b: &Self) -> f32;
+}
+
 /// Represents a Bezier curve that will use polynomials of the specified degree
 /// to interpolate between the control points given the knots.
 #[derive(Clone, Debug)]
-pub struct Bezier<T: Interpolate + Copy> {
+pub struct Bezier<T: Interpolate + ProjectToSegment + Copy> {
     /// Control points for the curve
     pub control_points: Vec<T>,
 }
 
-impl<T: Interpolate + Copy> Bezier<T> {
+impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
     /// Create a new Bezier curve of formed by interpolating the `control_points`
     pub fn new(control_points: Vec<T>) -> Bezier<T> {
         Bezier { control_points: control_points }
@@ -53,6 +62,26 @@ impl<T: Interpolate + Copy> Bezier<T> {
     /// Get an iterator over the control points.
     pub fn control_points(&self) -> Iter<T> {
         self.control_points.iter()
+    }
+    /// Insert a new point into the curve. The point will be inserted near the existing
+    /// control points that it's closest too
+    pub fn insert_point(&self, t: T) {
+        if self.control_points.len() == 1 {
+            println!("Just going to append");
+            return;
+        }
+        println!("Testing point {:?}", t);
+        // Go through all segments of the control polygon and find the nearest one
+        let nearest = self.control_points.windows(2).enumerate()
+            .map(|(i, x)| (i, t.project(&x[0], &x[1])))
+            .fold((0, f32::MAX), |acc, (i, d)| {
+                if d < acc.1 {
+                    (i, d)
+                } else {
+                    acc
+                }
+            });
+        println!("nearest segment: {:?}", nearest);
     }
     /// Recursively use de Casteljau's algorithm to compute the desired point
     fn de_casteljau(&self, t: f32, r: usize, i: usize) -> T {
