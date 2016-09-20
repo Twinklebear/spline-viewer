@@ -188,6 +188,7 @@ fn main() {
     let mut selected_curve: i32 = 0;
     let mut ui_interaction = false;
     let mut file_output_name: String = iter::repeat('\0').take(64).collect();
+    let mut color_attenuation = true;
     'outer: loop {
         for e in display.poll_events() {
             match e {
@@ -244,8 +245,10 @@ fn main() {
         target.clear_color(0.1, 0.1, 0.1, 1.0);
 
         let proj_view: [[f32; 4]; 4] = (projection * camera.get_mat4()).into();
+        let attenuation = if color_attenuation { 0.4 } else { 1.0 };
         for (i, c) in curves.iter().enumerate() {
-            c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == selected_curve);
+            c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == selected_curve,
+                     attenuation);
         }
 
         let ui = imgui.render_ui(&display);
@@ -274,6 +277,7 @@ fn main() {
                 }
                 ui.popup(im_str!("curves_saved"), || ui.text(im_str!("Curves saved")));
                 ui.popup(im_str!("need_file_name"), || ui.text(im_str!("A file name is required")));
+                ui.checkbox(im_str!("Fade Unselected Curves"), &mut color_attenuation);
 
                 let mut removing = None;
                 for (i, c) in curves.iter_mut().enumerate() {

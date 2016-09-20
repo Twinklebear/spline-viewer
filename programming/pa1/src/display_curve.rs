@@ -94,12 +94,11 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
         self.moving_point = None;
     }
     pub fn render<S: Surface>(&self, target: &mut S, program: &Program, draw_params: &DrawParameters,
-                  proj_view: &[[f32; 4]; 4], selected: bool) {
+                  proj_view: &[[f32; 4]; 4], selected: bool, attenuation: f32) {
         let (curve_color, control_color) =
             if selected {
                 (self.curve_color, self.control_color)
             } else {
-                let attenuation = 0.5;
                 ([attenuation * self.curve_color[0], attenuation * self.curve_color[1],
                   attenuation * self.curve_color[2]],
                  [attenuation * self.control_color[0], attenuation * self.control_color[1],
