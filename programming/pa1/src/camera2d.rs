@@ -16,8 +16,8 @@ impl Camera2d {
     pub fn zoom(&mut self, z: f32) {
         self.zoom += z;
         // Only allow up to 10x zoom out
-        if self.zoom < 0.01 {
-            self.zoom = 0.01;
+        if self.zoom < 0.1 {
+            self.zoom = 0.1;
         }
     }
     pub fn get_mat4(&self) -> Matrix4<f32> {
