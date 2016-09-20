@@ -20,6 +20,8 @@ pub struct DisplayCurve<'a, F: 'a + Facade> {
     draw_control_poly: bool,
     draw_control_points: bool,
     moving_point: Option<usize>,
+    curve_color: [f32; 3],
+    control_color: [f32; 3],
 }
 
 impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
@@ -50,6 +52,8 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
                        draw_control_poly: true,
                        draw_control_points: true,
                        moving_point: None,
+                       curve_color: [0.8, 0.8, 0.1],
+                       control_color: [0.8, 0.8, 0.8],
         }
     }
     pub fn handle_click(&mut self, pos: Point, shift_down: bool) {
@@ -89,11 +93,21 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
         self.moving_point = None;
     }
     pub fn render<S: Surface>(&self, target: &mut S, program: &Program, draw_params: &DrawParameters,
-                  proj_view: &[[f32; 4]; 4]) {
+                  proj_view: &[[f32; 4]; 4], selected: bool) {
+        let (curve_color, control_color) =
+            if selected {
+                (self.curve_color, self.control_color)
+            } else {
+                let attenuation = 0.5;
+                ([attenuation * self.curve_color[0], attenuation * self.curve_color[1],
+                  attenuation * self.curve_color[2]],
+                 [attenuation * self.control_color[0], attenuation * self.control_color[1],
+                  attenuation * self.control_color[2]])
+            };
         if !self.curve.control_points.is_empty() {
             let uniforms = uniform! {
                 proj_view: *proj_view,
-                pcolor: [0.8f32, 0.8f32, 0.1f32],
+                pcolor: curve_color,
             };
             // Draw the curve
             if self.draw_curve {
@@ -102,7 +116,7 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
             }
             let uniforms = uniform! {
                 proj_view: *proj_view,
-                pcolor: [0.8f32, 0.8f32, 0.8f32],
+                pcolor: control_color,
             };
             // Draw the control polygon
             if self.draw_control_poly {
@@ -121,6 +135,8 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
         ui.checkbox(im_str!("Draw Curve"), &mut self.draw_curve);
         ui.checkbox(im_str!("Draw Control Polygon"), &mut self.draw_control_poly);
         ui.checkbox(im_str!("Draw Control Points"), &mut self.draw_control_points);
+        ui.color_edit3(im_str!("Curve Color"), &mut self.curve_color).build();
+        ui.color_edit3(im_str!("Control Color"), &mut self.control_color).build();
     }
 }
 

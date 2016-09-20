@@ -5,8 +5,11 @@ use glium::glutin::{ElementState, Event, MouseButton, MouseScrollDelta, VirtualK
 use imgui::{self, ImGui, ImGuiKey, ImStr};
 use imgui_sys;
 
-pub fn mouse_hovering_any_window() -> bool {
+pub fn is_mouse_hovering_any_window() -> bool {
     unsafe { imgui_sys::igIsMouseHoveringAnyWindow() }
+}
+pub fn is_any_item_active() -> bool {
+    unsafe { imgui_sys::igIsAnyItemActive() }
 }
 pub fn radio_button(label: ImStr, value: &mut i32, button: i32) {
     unsafe { imgui_sys::igRadioButton(label.as_ptr(), value as *mut i32, button); }

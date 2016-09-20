@@ -168,7 +168,8 @@ fn main() {
     // Tracks if we're dragging a control point or not
     //let mut moving_point = None;
     let mut shift_down = false;
-    let mut selected_curve = 0;
+    let mut selected_curve: i32 = 0;
+    let mut ui_interaction = false;
     'outer: loop {
         for e in display.poll_events() {
             match e {
@@ -182,7 +183,7 @@ fn main() {
                         _ => {}
                     }
                 },
-                Event::MouseMoved(x, y) if imgui.mouse_pressed.1 && !imgui_support::mouse_hovering_any_window() => {
+                Event::MouseMoved(x, y) if imgui.mouse_pressed.1 && !ui_interaction => {
                     let fbscale = imgui.imgui.display_framebuffer_scale();
                     let delta = ((x - imgui.mouse_pos.0) as f32 / (fbscale.0 * 100.0),
                                  -(y - imgui.mouse_pos.1) as f32 / (fbscale.1 * 100.0));
@@ -201,7 +202,7 @@ fn main() {
             }
             imgui.update_event(&e);
         }
-        if !imgui_support::mouse_hovering_any_window() {
+        if !ui_interaction {
             if imgui.mouse_wheel != 0.0 {
                 let fbscale = imgui.imgui.display_framebuffer_scale();
                 camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
@@ -219,12 +220,14 @@ fn main() {
         }
         imgui.update_mouse();
 
+        ui_interaction = imgui_support::is_mouse_hovering_any_window() || imgui_support::is_any_item_active();
+
         let mut target = display.draw();
         target.clear_color(0.1, 0.1, 0.1, 1.0);
 
         let proj_view: [[f32; 4]; 4] = (projection * camera.get_mat4()).into();
-        for c in &curves[..] {
-            c.render(&mut target, &shader_program, &draw_params, &proj_view);
+        for (i, c) in curves.iter().enumerate() {
+            c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == selected_curve);
         }
 
         let ui = imgui.render_ui(&display);
