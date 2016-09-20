@@ -86,7 +86,7 @@ impl ProjectToSegment for Point {
     fn project(&self, a: &Point, b: &Point) -> (f32, f32) {
         let v = *b - *a;
         let dir = *self - *a;
-        let t = clamp(dir.dot(&v) / v.length(), 0.0, 1.0);
+        let t = clamp(dir.dot(&v) / v.dot(&v), 0.0, 1.0);
         let p = *a + v * t;
         let d = (p - *self).length();
         (d, t)
@@ -222,7 +222,7 @@ fn main() {
                                    height as f32 / 200.0, -1.0, -10.0);
     let mut curve_points_vbo = VertexBuffer::new(&display, &points[..]).unwrap();
     let draw_params = DrawParameters {
-        point_size: Some(4.0),
+        point_size: Some(6.0),
         .. Default::default()
     };
     let shader_program = program!(&display,
@@ -308,7 +308,7 @@ fn main() {
                 moving_point = Some(nearest.0);
                 curves[0].control_points[nearest.0] = pos;
             } else {
-                curves[0].insert_point(pos);
+                moving_point = Some(curves[0].insert_point(pos));
             }
             if !curves[0].control_points.is_empty() {
                 control_points_vbo = VertexBuffer::new(&display, &curves[0].control_points[..]).unwrap();

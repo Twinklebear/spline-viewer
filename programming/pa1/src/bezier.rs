@@ -66,11 +66,12 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
         self.control_points.iter()
     }
     /// Insert a new point into the curve. The point will be inserted near the existing
-    /// control points that it's closest too
-    pub fn insert_point(&mut self, t: T) {
+    /// control points that it's closest too. Returns the index the point was
+    /// inserted at.
+    pub fn insert_point(&mut self, t: T) -> usize {
         if self.control_points.len() == 1 {
             self.control_points.push(t);
-            return;
+            return 1;
         }
         // Go through all segments of the control polygon and find the nearest one
         let nearest = self.control_points.windows(2).enumerate()
@@ -88,10 +89,13 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
         // Check if we're appending or prepending the point
         if nearest.0 == 0 && nearest.2 == 0.0 {
             self.control_points.insert(0, t);
+            0
         } else if nearest.0 == self.control_points.len() - 2 && nearest.2 == 1.0 {
             self.control_points.push(t);
+            self.control_points.len() - 1
         } else {
             self.control_points.insert(nearest.0 + 1, t);
+            nearest.0 + 1
         }
     }
     /// Recursively use de Casteljau's algorithm to compute the desired point
