@@ -249,6 +249,7 @@ fn main() {
 
     // Tracks if we're dragging a control point or not
     let mut moving_point = None;
+    let mut shift_down = false;
     'outer: loop {
         for e in display.poll_events() {
             match e {
@@ -257,6 +258,8 @@ fn main() {
                     let pressed = state == ElementState::Pressed;
                     match code {
                         Some(VirtualKeyCode::Escape) if pressed => break 'outer,
+                        Some(VirtualKeyCode::RShift) => shift_down = pressed,
+                        Some(VirtualKeyCode::LShift) => shift_down = pressed,
                         _ => {}
                     }
                 },
@@ -294,7 +297,12 @@ fn main() {
             // otherwise we're adding a new point
             let nearest = curves[0].control_points().enumerate().map(|(i, x)| (i, (*x - pos).length()))
                 .fold((0, f32::MAX), |acc, (i, d)| if d < acc.1 { (i, d) } else { acc });
-            if let Some(p) = moving_point {
+            if shift_down {
+                moving_point = None;
+                if nearest.1 < 8.0 / 100.0 {
+                    curves[0].control_points.remove(nearest.0);
+                }
+            } else if let Some(p) = moving_point {
                 curves[0].control_points[p] = pos;
             } else if nearest.1 < 8.0 / 100.0 {
                 moving_point = Some(nearest.0);
@@ -302,14 +310,16 @@ fn main() {
             } else {
                 curves[0].insert_point(pos);
             }
-            control_points_vbo = VertexBuffer::new(&display, &curves[0].control_points[..]).unwrap();
-            points.clear();
-            // Just draw the first one for now
-            for s in 0..steps + 1 {
-                let t = step_size * s as f32 + t_range.0;
-                points.push(curves[0].point(t));
+            if !curves[0].control_points.is_empty() {
+                control_points_vbo = VertexBuffer::new(&display, &curves[0].control_points[..]).unwrap();
+                points.clear();
+                // Just draw the first one for now
+                for s in 0..steps + 1 {
+                    let t = step_size * s as f32 + t_range.0;
+                    points.push(curves[0].point(t));
+                }
+                curve_points_vbo = VertexBuffer::new(&display, &points[..]).unwrap();
             }
-            curve_points_vbo = VertexBuffer::new(&display, &points[..]).unwrap();
         }
         imgui.update_mouse();
 
@@ -324,20 +334,22 @@ fn main() {
             pcolor: [0.8f32, 0.8f32, 0.1f32],
         };
 
-        // Draw the curve
-        target.draw(&curve_points_vbo, &NoIndices(PrimitiveType::LineStrip),
-                    &shader_program, &uniforms, &draw_params).unwrap();
-        let uniforms = uniform! {
-            projection: proj,
-            view: cam,
-            pcolor: [0.8f32, 0.8f32, 0.8f32],
-        };
-        // Draw the control points
-        target.draw(&control_points_vbo, &NoIndices(PrimitiveType::Points),
-                    &shader_program, &uniforms, &draw_params).unwrap();
-        // Draw the control polygon
-        target.draw(&control_points_vbo, &NoIndices(PrimitiveType::LineStrip),
-                    &shader_program, &uniforms, &draw_params).unwrap();
+        if !curves[0].control_points.is_empty() {
+            // Draw the curve
+            target.draw(&curve_points_vbo, &NoIndices(PrimitiveType::LineStrip),
+                        &shader_program, &uniforms, &draw_params).unwrap();
+            let uniforms = uniform! {
+                projection: proj,
+                view: cam,
+                pcolor: [0.8f32, 0.8f32, 0.8f32],
+            };
+            // Draw the control points
+            target.draw(&control_points_vbo, &NoIndices(PrimitiveType::Points),
+                        &shader_program, &uniforms, &draw_params).unwrap();
+            // Draw the control polygon
+            target.draw(&control_points_vbo, &NoIndices(PrimitiveType::LineStrip),
+                        &shader_program, &uniforms, &draw_params).unwrap();
+        }
 
         let ui = imgui.render_ui(&display);
         ui.window(im_str!("Control Panel"))
