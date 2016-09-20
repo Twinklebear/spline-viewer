@@ -15,7 +15,7 @@ pub fn clamp(x: f32, min: f32, max: f32) -> f32 {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Point {
-    pos: [f32; 2],
+    pub pos: [f32; 2],
 }
 impl Point {
     pub fn new(x: f32, y: f32) -> Point {

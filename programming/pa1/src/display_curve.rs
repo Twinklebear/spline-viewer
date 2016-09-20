@@ -13,7 +13,7 @@ use point::Point;
 
 pub struct DisplayCurve<'a, F: 'a + Facade> {
     display: &'a F,
-    curve: Bezier<Point>,
+    pub curve: Bezier<Point>,
     curve_points_vbo:  VertexBuffer<Point>,
     control_points_vbo: VertexBuffer<Point>,
     draw_curve: bool,

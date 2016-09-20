@@ -15,13 +15,15 @@ mod camera2d;
 mod display_curve;
 
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::io::prelude::*;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 use std::f32;
+use std::iter;
 
 use glium::{DisplayBuild, Surface, DrawParameters};
 use glium::glutin::{self, ElementState, Event, VirtualKeyCode, MouseButton};
+use glium::backend::glutin_backend::GlutinFacade;
 use cgmath::{SquareMatrix, Transform};
 use docopt::Docopt;
 use regex::Regex;
@@ -32,6 +34,7 @@ use point::Point;
 use camera2d::Camera2d;
 use display_curve::DisplayCurve;
 
+/// Import a list of Bezier curves from the file
 fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
     let file = match File::open(path) {
         Ok(f) => f,
@@ -89,6 +92,21 @@ fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
     }
     curves
 }
+/// Save the curves being displayed to a file
+fn export<P: AsRef<Path>>(path: P, curves: &Vec<DisplayCurve<GlutinFacade>>) {
+    let file = match File::create(path) {
+        Ok(f) => f,
+        Err(e) => panic!("Failed to create file: {}", e),
+    };
+    let mut writer = BufWriter::new(file);
+    write!(&mut writer, "{}\n", curves.len()).unwrap();
+    for c in curves {
+        write!(&mut writer, "P,{}\n", c.curve.control_points.len()).unwrap();
+        for p in c.curve.control_points() {
+            write!(&mut writer, "{}, {}\n", p.pos[0], p.pos[1]).unwrap();
+        }
+    }
+}
 
 const USAGE: &'static str = "
 Usage:
@@ -122,12 +140,11 @@ fn main() {
 
     let mut curves = Vec::new();
     if let Some(files) = args.arg_file {
-        let mut imported_curves = Vec::new();
         for f in files {
-            imported_curves = import(f);
-        }
-        for c in imported_curves {
-            curves.push(DisplayCurve::new(c, &display));
+            let imported_curves = import(f);
+            for c in imported_curves {
+                curves.push(DisplayCurve::new(c, &display));
+            }
         }
     }
 
@@ -170,6 +187,7 @@ fn main() {
     let mut shift_down = false;
     let mut selected_curve: i32 = 0;
     let mut ui_interaction = false;
+    let mut file_output_name: String = iter::repeat('\0').take(64).collect();
     'outer: loop {
         for e in display.poll_events() {
             match e {
@@ -241,6 +259,21 @@ fn main() {
                 ui.text(im_str!("Framerate: {:.3} FPS ({:.3} ms)", fps, frame_time));
                 ui.text(im_str!("OpenGL Version: {}.{}", gl_version.1, gl_version.2));
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
+                ui.input_text(im_str!("Output File"), &mut file_output_name).build();
+                if ui.small_button(im_str!("Save Curve")) {
+                    if !file_output_name.starts_with('\0') {
+                        let mut path = PathBuf::from("./");
+                        path.push(file_output_name.trim_matches('\0'));
+                        path.set_extension("dat");
+                        export(path, &curves);
+                        ui.open_popup(im_str!("curves_saved"));
+                        file_output_name = iter::repeat('\0').take(64).collect();
+                    } else {
+                        ui.open_popup(im_str!("need_file_name"));
+                    }
+                }
+                ui.popup(im_str!("curves_saved"), || ui.text(im_str!("Curves saved")));
+                ui.popup(im_str!("need_file_name"), || ui.text(im_str!("A file name is required")));
 
                 let mut removing = None;
                 for (i, c) in curves.iter_mut().enumerate() {
