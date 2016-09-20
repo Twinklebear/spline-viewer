@@ -4,6 +4,7 @@
 use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
+use imgui::Ui;
 
 use bezier::Bezier;
 use point::Point;
@@ -54,6 +55,9 @@ impl DisplayCurve {
             target.draw(&self.control_points_vbo, &NoIndices(PrimitiveType::LineStrip),
                         &program, &uniforms, &draw_params).unwrap();
         }
+    }
+    pub fn draw_ui(&self, ui: &Ui) {
+        ui.text(im_str!("Number of Control Points: {}", self.curve.control_points.len()));
     }
 }
 

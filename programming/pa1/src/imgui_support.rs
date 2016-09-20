@@ -1,9 +1,17 @@
 use std::time::Instant;
+use std::ffi::CString;
 
 use glium;
 use glium::glutin::{ElementState, Event, MouseButton, MouseScrollDelta, VirtualKeyCode, TouchPhase};
-use imgui::{self, ImGui, ImGuiKey};
+use imgui::{self, ImGui, ImGuiKey, ImStr};
 use imgui_sys;
+
+pub fn mouse_hovering_any_window() -> bool {
+    unsafe { imgui_sys::igIsMouseHoveringAnyWindow() }
+}
+pub fn radio_button(label: ImStr, value: &mut i32, button: i32) {
+    unsafe { imgui_sys::igRadioButton(label.as_ptr(), value as *mut i32, button); }
+}
 
 /// Manages giving ImGui key presses, mouse motion and so on
 pub struct ImGuiSupport {
@@ -63,9 +71,6 @@ impl ImGuiSupport {
                                   false, false]);
         self.imgui.set_mouse_wheel(self.mouse_wheel / scale.1);
         self.mouse_wheel = 0.0;
-    }
-    pub fn mouse_hovering_any_window(&self) -> bool {
-        unsafe { imgui_sys::igIsMouseHoveringAnyWindow() }
     }
     pub fn update_event(&mut self, e: &Event) {
         match *e {

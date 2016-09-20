@@ -167,6 +167,7 @@ fn main() {
     // Tracks if we're dragging a control point or not
     //let mut moving_point = None;
     let mut shift_down = false;
+    let mut selected_curve = 0;
     'outer: loop {
         for e in display.poll_events() {
             match e {
@@ -180,7 +181,7 @@ fn main() {
                         _ => {}
                     }
                 },
-                Event::MouseMoved(x, y) if imgui.mouse_pressed.1 && !imgui.mouse_hovering_any_window() => {
+                Event::MouseMoved(x, y) if imgui.mouse_pressed.1 && !imgui_support::mouse_hovering_any_window() => {
                     let fbscale = imgui.imgui.display_framebuffer_scale();
                     let delta = ((x - imgui.mouse_pos.0) as f32 / (fbscale.0 * 100.0),
                                  -(y - imgui.mouse_pos.1) as f32 / (fbscale.1 * 100.0));
@@ -198,7 +199,7 @@ fn main() {
             }
             imgui.update_event(&e);
         }
-        if imgui.mouse_wheel != 0.0 && !imgui.mouse_hovering_any_window() {
+        if imgui.mouse_wheel != 0.0 && !imgui_support::mouse_hovering_any_window() {
             let fbscale = imgui.imgui.display_framebuffer_scale();
             camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
         }
@@ -261,6 +262,12 @@ fn main() {
                 ui.text(im_str!("Framerate: {:.3} FPS ({:.3} ms)", fps, frame_time));
                 ui.text(im_str!("OpenGL Version: {}.{}", gl_version.1, gl_version.2));
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
+
+                for (i, c) in curves.iter().enumerate() {
+                    ui.separator();
+                    imgui_support::radio_button(im_str!("Select Curve #{}", i), &mut selected_curve, i as i32);
+                    c.draw_ui(&ui);
+                }
             });
         imgui_renderer.render(&mut target, ui).unwrap();
 
