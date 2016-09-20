@@ -1,6 +1,8 @@
 /// Manages displaying and toggling interaction modes with
 /// a specific Bezier curve in the scene.
 
+use std::f32;
+
 use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
@@ -9,36 +11,82 @@ use imgui::Ui;
 use bezier::Bezier;
 use point::Point;
 
-pub struct DisplayCurve {
+pub struct DisplayCurve<'a, F: 'a + Facade> {
+    display: &'a F,
     curve: Bezier<Point>,
     curve_points_vbo:  VertexBuffer<Point>,
     control_points_vbo: VertexBuffer<Point>,
     draw_curve: bool,
     draw_control_poly: bool,
     draw_control_points: bool,
+    moving_point: Option<usize>,
 }
 
-impl DisplayCurve {
-    pub fn new<F: Facade>(curve: Bezier<Point>, display: &F) -> DisplayCurve {
-        let step_size = 0.01;
-        let t_range = (0.0, 1.0);
-        let steps = ((t_range.1 - t_range.0) / step_size) as usize;
-        let control_points_vbo = VertexBuffer::new(display, &curve.control_points[..]).unwrap();
-        let mut points = Vec::with_capacity(steps);
-        // Just draw the first one for now
-        for s in 0..steps + 1 {
-            let t = step_size * s as f32 + t_range.0;
-            points.push(curve.point(t));
+impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
+    pub fn new(curve: Bezier<Point>, display: &'a F) -> DisplayCurve<'a, F> {
+        let control_points_vbo;
+        let curve_points_vbo;
+        if !curve.control_points.is_empty() {
+            let step_size = 0.01;
+            let t_range = (0.0, 1.0);
+            let steps = ((t_range.1 - t_range.0) / step_size) as usize;
+            control_points_vbo = VertexBuffer::new(display, &curve.control_points[..]).unwrap();
+            let mut points = Vec::with_capacity(steps);
+            // Just draw the first one for now
+            for s in 0..steps + 1 {
+                let t = step_size * s as f32 + t_range.0;
+                points.push(curve.point(t));
+            }
+            curve_points_vbo = VertexBuffer::new(display, &points[..]).unwrap();
+        } else {
+            control_points_vbo = VertexBuffer::empty(display, 10).unwrap();
+            curve_points_vbo = VertexBuffer::empty(display, 10).unwrap();
         }
-        let curve_points_vbo = VertexBuffer::new(display, &points[..]).unwrap();
-
-        DisplayCurve { curve: curve,
+        DisplayCurve { display: display,
+                       curve: curve,
                        curve_points_vbo: curve_points_vbo,
                        control_points_vbo: control_points_vbo,
                        draw_curve: true,
                        draw_control_poly: true,
                        draw_control_points: true,
+                       moving_point: None,
         }
+    }
+    pub fn handle_click(&mut self, pos: Point, shift_down: bool) {
+        // If we're close to control point of the selected curve we're dragging it,
+        // otherwise we're adding a new point
+        let nearest = self.curve.control_points().enumerate().map(|(i, x)| (i, (*x - pos).length()))
+            .fold((0, f32::MAX), |acc, (i, d)| if d < acc.1 { (i, d) } else { acc });
+        if shift_down {
+            self.moving_point = None;
+            if nearest.1 < 16.0 / 100.0 {
+                self.curve.control_points.remove(nearest.0);
+            }
+        } else if let Some(p) = self.moving_point {
+            self.curve.control_points[p] = pos;
+        } else if nearest.1 < 16.0 / 100.0 {
+            self.moving_point = Some(nearest.0);
+            self.curve.control_points[nearest.0] = pos;
+        } else {
+            self.moving_point = Some(self.curve.insert_point(pos));
+        }
+        if !self.curve.control_points.is_empty() {
+            let step_size = 0.01;
+            let t_range = (0.0, 1.0);
+            let steps = ((t_range.1 - t_range.0) / step_size) as usize;
+            self.control_points_vbo = VertexBuffer::new(self.display, &self.curve.control_points[..]).unwrap();
+            let mut points = Vec::with_capacity(steps);
+            // Just draw the first one for now
+            for s in 0..steps + 1 {
+                let t = step_size * s as f32 + t_range.0;
+                points.push(self.curve.point(t));
+            }
+            self.curve_points_vbo = VertexBuffer::new(self.display, &points[..]).unwrap();
+        }
+    }
+    /// Release any held point that was being dragged
+    pub fn release_point(&mut self) {
+        self.moving_point = None;
     }
     pub fn render<S: Surface>(&self, target: &mut S, program: &Program, draw_params: &DrawParameters,
                   proj_view: &[[f32; 4]; 4]) {

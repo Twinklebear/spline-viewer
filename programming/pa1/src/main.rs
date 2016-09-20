@@ -22,6 +22,7 @@ use std::f32;
 
 use glium::{DisplayBuild, Surface, DrawParameters};
 use glium::glutin::{self, ElementState, Event, VirtualKeyCode, MouseButton};
+use cgmath::{SquareMatrix, Transform};
 use docopt::Docopt;
 use regex::Regex;
 
@@ -187,8 +188,9 @@ fn main() {
                                  -(y - imgui.mouse_pos.1) as f32 / (fbscale.1 * 100.0));
                     camera.translate(delta.0, delta.1);
                 },
-                //Event::MouseInput(state, button) if state == ElementState::Released && button == MouseButton::Left
-                 //   => moving_point = None,
+                Event::MouseInput(state, button)
+                    if state == ElementState::Released && button == MouseButton::Left && !curves.is_empty()
+                        => curves[selected_curve as usize].release_point(),
                 Event::Resized(w, h) => {
                     width = w;
                     height = h;
@@ -199,48 +201,22 @@ fn main() {
             }
             imgui.update_event(&e);
         }
-        if imgui.mouse_wheel != 0.0 && !imgui_support::mouse_hovering_any_window() {
-            let fbscale = imgui.imgui.display_framebuffer_scale();
-            camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
-        }
-        /*
-        if imgui.mouse_pressed.0 && !imgui.mouse_hovering_any_window() {
-            let unproj = (projection * camera.get_mat4()).invert().expect("Uninvertable proj * view!?");
-            let click_pos =
-                cgmath::Point3::<f32>::new(2.0 * imgui.mouse_pos.0 as f32 / width as f32 - 1.0,
-                                           -2.0 * imgui.mouse_pos.1 as f32 / height as f32 + 1.0,
-                                           0.0);
-            let pos = unproj.transform_point(click_pos);
-            let pos = Point::new(pos.x, pos.y);
-            // If we're close to control point of the selected curve we're dragging it,
-            // otherwise we're adding a new point
-            let nearest = curves[0].control_points().enumerate().map(|(i, x)| (i, (*x - pos).length()))
-                .fold((0, f32::MAX), |acc, (i, d)| if d < acc.1 { (i, d) } else { acc });
-            if shift_down {
-                moving_point = None;
-                if nearest.1 < 8.0 / 100.0 {
-                    curves[0].control_points.remove(nearest.0);
-                }
-            } else if let Some(p) = moving_point {
-                curves[0].control_points[p] = pos;
-            } else if nearest.1 < 8.0 / 100.0 {
-                moving_point = Some(nearest.0);
-                curves[0].control_points[nearest.0] = pos;
-            } else {
-                moving_point = Some(curves[0].insert_point(pos));
+        if !imgui_support::mouse_hovering_any_window() {
+            if imgui.mouse_wheel != 0.0 {
+                let fbscale = imgui.imgui.display_framebuffer_scale();
+                camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
             }
-            if !curves[0].control_points.is_empty() {
-                control_points_vbo = VertexBuffer::new(&display, &curves[0].control_points[..]).unwrap();
-                points.clear();
-                // Just draw the first one for now
-                for s in 0..steps + 1 {
-                    let t = step_size * s as f32 + t_range.0;
-                    points.push(curves[0].point(t));
-                }
-                curve_points_vbo = VertexBuffer::new(&display, &points[..]).unwrap();
+            if imgui.mouse_pressed.0 && !curves.is_empty() {
+                let unproj = (projection * camera.get_mat4()).invert().expect("Uninvertable proj * view!?");
+                let click_pos =
+                    cgmath::Point3::<f32>::new(2.0 * imgui.mouse_pos.0 as f32 / width as f32 - 1.0,
+                                               -2.0 * imgui.mouse_pos.1 as f32 / height as f32 + 1.0,
+                                               0.0);
+                let pos = unproj.transform_point(click_pos);
+                let pos = Point::new(pos.x, pos.y);
+                curves[selected_curve as usize].handle_click(pos, shift_down);
             }
         }
-        */
         imgui.update_mouse();
 
         let mut target = display.draw();
@@ -263,12 +239,25 @@ fn main() {
                 ui.text(im_str!("OpenGL Version: {}.{}", gl_version.1, gl_version.2));
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
 
+                let mut removing = None;
                 for (i, c) in curves.iter_mut().enumerate() {
                     ui.separator();
                     imgui_support::push_id_int(i as i32);
                     imgui_support::radio_button(im_str!("Select Curve"), &mut selected_curve, i as i32);
                     c.draw_ui(&ui);
+                    if ui.small_button(im_str!("Remove Curve")) {
+                        removing = Some(i);
+                    }
                     imgui_support::pop_id();
+                }
+                if let Some(i) = removing {
+                    if selected_curve as usize >= i && selected_curve != 0 {
+                        selected_curve -= 1;
+                    }
+                    curves.remove(i);
+                }
+                if ui.small_button(im_str!("Add Curve")) {
+                    curves.push(DisplayCurve::new(Bezier::new(Vec::new()), &display));
                 }
             });
         imgui_renderer.render(&mut target, ui).unwrap();
