@@ -35,8 +35,10 @@ impl<T: Mul<f32, Output = T> + Add<Output = T> + Copy> Interpolate for T {
 /// A trait for types that can be projected on to a line segment
 pub trait ProjectToSegment {
     /// Should return the distance from the projected point on the segment
-    /// to self.
-    fn project(&self, a: &Self, b: &Self) -> f32;
+    /// to self. The second element of the tuple is out location along the segment
+    /// starting from a to b. if < 0 we're before a, if > 1 we're after b and if
+    /// in [0, 1] we're inside the segment
+    fn project(&self, a: &Self, b: &Self) -> (f32, f32);
 }
 
 /// Represents a Bezier curve that will use polynomials of the specified degree
@@ -65,23 +67,32 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
     }
     /// Insert a new point into the curve. The point will be inserted near the existing
     /// control points that it's closest too
-    pub fn insert_point(&self, t: T) {
+    pub fn insert_point(&mut self, t: T) {
         if self.control_points.len() == 1 {
-            println!("Just going to append");
+            self.control_points.push(t);
             return;
         }
-        println!("Testing point {:?}", t);
         // Go through all segments of the control polygon and find the nearest one
         let nearest = self.control_points.windows(2).enumerate()
-            .map(|(i, x)| (i, t.project(&x[0], &x[1])))
-            .fold((0, f32::MAX), |acc, (i, d)| {
+            .map(|(i, x)| {
+                let proj = t.project(&x[0], &x[1]);
+                (i, proj.0, proj.1)
+            })
+            .fold((0, f32::MAX, 0.0), |acc, (i, d, l)| {
                 if d < acc.1 {
-                    (i, d)
+                    (i, d, l)
                 } else {
                     acc
                 }
             });
-        println!("nearest segment: {:?}", nearest);
+        // Check if we're appending or prepending the point
+        if nearest.0 == 0 && nearest.2 == 0.0 {
+            self.control_points.insert(0, t);
+        } else if nearest.0 == self.control_points.len() - 2 && nearest.2 == 1.0 {
+            self.control_points.push(t);
+        } else {
+            self.control_points.insert(nearest.0 + 1, t);
+        }
     }
     /// Recursively use de Casteljau's algorithm to compute the desired point
     fn de_casteljau(&self, t: f32, r: usize, i: usize) -> T {
