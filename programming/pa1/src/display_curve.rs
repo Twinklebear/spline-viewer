@@ -56,19 +56,20 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
                        control_color: [0.8, 0.8, 0.8],
         }
     }
-    pub fn handle_click(&mut self, pos: Point, shift_down: bool) {
+    pub fn handle_click(&mut self, pos: Point, shift_down: bool, zoom_factor: f32) {
         // If we're close to control point of the selected curve we're dragging it,
         // otherwise we're adding a new point
         let nearest = self.curve.control_points().enumerate().map(|(i, x)| (i, (*x - pos).length()))
             .fold((0, f32::MAX), |acc, (i, d)| if d < acc.1 { (i, d) } else { acc });
+        let point_size = 12.0 / (100.0 * zoom_factor);
         if shift_down {
             self.moving_point = None;
-            if nearest.1 < 16.0 / 100.0 {
+            if nearest.1 < point_size {
                 self.curve.control_points.remove(nearest.0);
             }
         } else if let Some(p) = self.moving_point {
             self.curve.control_points[p] = pos;
-        } else if nearest.1 < 16.0 / 100.0 {
+        } else if nearest.1 < point_size {
             self.moving_point = Some(nearest.0);
             self.curve.control_points[nearest.0] = pos;
         } else {

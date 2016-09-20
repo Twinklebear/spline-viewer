@@ -233,7 +233,7 @@ fn main() {
                                                0.0);
                 let pos = unproj.transform_point(click_pos);
                 let pos = Point::new(pos.x, pos.y);
-                curves[selected_curve as usize].handle_click(pos, shift_down);
+                curves[selected_curve as usize].handle_click(pos, shift_down, camera.zoom);
             }
         }
         imgui.update_mouse();
