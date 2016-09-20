@@ -1,5 +1,4 @@
 use std::time::Instant;
-use std::ffi::CString;
 
 use glium;
 use glium::glutin::{ElementState, Event, MouseButton, MouseScrollDelta, VirtualKeyCode, TouchPhase};
@@ -11,6 +10,12 @@ pub fn mouse_hovering_any_window() -> bool {
 }
 pub fn radio_button(label: ImStr, value: &mut i32, button: i32) {
     unsafe { imgui_sys::igRadioButton(label.as_ptr(), value as *mut i32, button); }
+}
+pub fn push_id_int(id: i32) {
+    unsafe { imgui_sys::igPushIdInt(id); }
+}
+pub fn pop_id() {
+    unsafe { imgui_sys::igPopId(); }
 }
 
 /// Manages giving ImGui key presses, mouse motion and so on

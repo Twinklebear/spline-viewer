@@ -263,10 +263,12 @@ fn main() {
                 ui.text(im_str!("OpenGL Version: {}.{}", gl_version.1, gl_version.2));
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
 
-                for (i, c) in curves.iter().enumerate() {
+                for (i, c) in curves.iter_mut().enumerate() {
                     ui.separator();
-                    imgui_support::radio_button(im_str!("Select Curve #{}", i), &mut selected_curve, i as i32);
+                    imgui_support::push_id_int(i as i32);
+                    imgui_support::radio_button(im_str!("Select Curve"), &mut selected_curve, i as i32);
                     c.draw_ui(&ui);
+                    imgui_support::pop_id();
                 }
             });
         imgui_renderer.render(&mut target, ui).unwrap();
