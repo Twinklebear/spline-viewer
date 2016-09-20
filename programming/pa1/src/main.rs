@@ -258,6 +258,7 @@ fn main() {
                 }
                 if ui.small_button(im_str!("Add Curve")) {
                     curves.push(DisplayCurve::new(Bezier::new(Vec::new()), &display));
+                    selected_curve = (curves.len() - 1) as i32;
                 }
             });
         imgui_renderer.render(&mut target, ui).unwrap();
