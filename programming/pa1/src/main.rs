@@ -13,6 +13,7 @@ mod bezier;
 mod point;
 mod camera2d;
 mod display_curve;
+mod polyline;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -20,6 +21,7 @@ use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::f32;
 use std::iter;
+use std::ffi::OsStr;
 
 use glium::{DisplayBuild, Surface, DrawParameters};
 use glium::glutin::{self, ElementState, Event, VirtualKeyCode, MouseButton};
@@ -33,6 +35,7 @@ use bezier::Bezier;
 use point::Point;
 use camera2d::Camera2d;
 use display_curve::DisplayCurve;
+use polyline::Polyline;
 
 /// Import a list of Bezier curves from the file
 fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
@@ -92,6 +95,54 @@ fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
     }
     curves
 }
+/// Import a list of points from the file
+fn import_points<P: AsRef<Path>>(path: P) -> Vec<Point> {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) => panic!("Failed to open file: {}", e),
+    };
+    let reader = BufReader::new(file);
+    let curve_start = Regex::new("(P|Q), *(\\d+)").unwrap();
+    let mut points = Vec::new();
+    let mut rational_points = false;
+    let mut num_curves = 0;
+    for line in reader.lines() {
+        let l = line.unwrap();
+        // Skip empty lines and comments
+        if l.is_empty() || l.starts_with("#") {
+            continue;
+        }
+        if num_curves == 0 {
+            num_curves = l.parse().unwrap();
+            println!("Expecting {} set of points from the file", num_curves);
+            if num_curves > 1 {
+                println!("More than 1 set of point!? Makes no sense?");
+            }
+            continue;
+        }
+        if let Some(caps) = curve_start.captures(&l[..]) {
+            if caps.at(1) == Some("Q") {
+                rational_points = true;
+                println!("Expecting {} rational points in file", caps.at(2).unwrap());
+            } else {
+                rational_points = false;
+                println!("Expecting {} polynomial points in file", caps.at(2).unwrap());
+            }
+            continue;
+        }
+        let coords: Vec<_> = l.split(',').collect();
+        assert!(coords.len() >= 2);
+        let x = coords[0].trim().parse().unwrap();
+        let y = coords[1].trim().parse().unwrap();
+        if rational_points {
+            //let w = coords[2].trim().parse().unwrap();
+            //x /= w;
+            //y /= w;
+        }
+        points.push(Point::new(x, y));
+    }
+    points
+}
 /// Save the curves being displayed to a file
 fn export<P: AsRef<Path>>(path: P, curves: &Vec<DisplayCurve<GlutinFacade>>) {
     let file = match File::create(path) {
@@ -138,12 +189,22 @@ fn main() {
         .with_vsync()
         .build_glium().unwrap();
 
+    let mut polyline_data = None;
     let mut curves = Vec::new();
     if let Some(files) = args.arg_file {
         for f in files {
-            let imported_curves = import(f);
-            for c in imported_curves {
-                curves.push(DisplayCurve::new(c, &display));
+            let p = Path::new(&f);
+
+            if p.extension() == Some(OsStr::new("dat")) {
+                let imported_curves = import(p);
+                for c in imported_curves {
+                    curves.push(DisplayCurve::new(c, &display));
+                }
+            } else if p.extension() == Some(OsStr::new("crv")) {
+                let imported_points = import_points(p);
+                polyline_data = Some(Polyline::new(imported_points, &display));
+            } else {
+                println!("Unrecognized file type {}", f);
             }
         }
     }
@@ -250,9 +311,12 @@ fn main() {
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == selected_curve,
                      attenuation);
         }
+        if let Some(ref pl) = polyline_data {
+            pl.render(&mut target, &shader_program, &draw_params, &proj_view);
+        }
 
         let ui = imgui.render_ui(&display);
-        ui.window(im_str!("Control Panel"))
+        ui.window(im_str!("Curve Control Panel"))
             .size((300.0, 100.0), imgui::ImGuiSetCond_FirstUseEver)
             .build(|| {
                 let fps = ui.framerate();
@@ -301,6 +365,11 @@ fn main() {
                     selected_curve = (curves.len() - 1) as i32;
                 }
             });
+        if let Some(ref mut pl) = polyline_data {
+            ui.window(im_str!("Polyline Data"))
+                .size((300.0, 100.0), imgui::ImGuiSetCond_FirstUseEver)
+                .build(|| pl.draw_ui(&ui));
+        }
         imgui_renderer.render(&mut target, ui).unwrap();
 
         target.finish().unwrap();
