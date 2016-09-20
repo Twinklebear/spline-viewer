@@ -59,7 +59,7 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
     /// on debug builds and on release builds you'll likely get an out of bounds crash.
     pub fn point(&self, t: f32) -> T {
         debug_assert!(t >= 0.0 && t <= 1.0);
-        self.de_casteljau(t, self.control_points.len() - 1, 0)
+        self.de_casteljau(t, self.control_points.len() - 1)
     }
     /// Get an iterator over the control points.
     pub fn control_points(&self) -> Iter<T> {
@@ -98,15 +98,15 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
             nearest.0 + 1
         }
     }
-    /// Recursively use de Casteljau's algorithm to compute the desired point
-    fn de_casteljau(&self, t: f32, r: usize, i: usize) -> T {
-        if r == 0 {
-            self.control_points[i]
-        } else {
-            let a = self.de_casteljau(t, r - 1, i);
-            let b = self.de_casteljau(t, r - 1, i + 1);
-            a.interpolate(&b, t)
+    /// Iteratively use de Casteljau's algorithm to compute the desired point
+    fn de_casteljau(&self, t: f32, r: usize) -> T {
+        let mut tmp = self.control_points.clone();
+        for lvl in 0..r {
+            for i in 0..r - lvl {
+                tmp[i] = tmp[i].interpolate(&tmp[i + 1], t);
+            }
         }
+        tmp[0]
     }
 }
 
