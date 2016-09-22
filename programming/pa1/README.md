@@ -16,3 +16,44 @@ or directly find the binary under `./target/release/bezier`.
 
 ## Controls
 
+- Left click somewhere on the scene to add a new control point to the active curve,
+if you hold left click after adding you can continue dragging the new point.
+
+- Left click and drag an existing control point to move it around.
+
+- Shift + Left click on a control point to remove it.
+
+- Right click and drag to pan the camera around
+
+- Scroll to zoom in and out.
+
+- The UI can be used to add/remove curves, select the active curve,
+toggle drawing of the curve, control points and polygon along
+with the curve and control polygon colors.
+
+- To add a curve scroll to the bottom of the curve list to find the add curve button,
+this new curve will have 0 control points initially and will be selected automatically.
+
+- To change the curve color you can enter the values manually or left click and drag
+left/right on the r/g/b color boxes to change the value.
+
+## Method for adding points
+
+I chose to find the nearest segment on the control polygon to determine which existing
+control points a new point should be inserted in between. This works well and is simple
+to implement, though there can be some cases of ambiguity when the distance
+to two segments is the same. Some care is needed when finding the "nearest" point on
+the segment to treat them as actual segments instead of infinite lines so I clamp the
+position on the line we find our distance too to be on the segment.
+
+To determine if we're appending or prepending a point I check if it's the first or
+last segment and if the point we projected to on the line is at the end or start
+of the segment accordingly. For example if we find the nearest point is the end
+of the last segment, we're appending a new control point.
+
+## Curve generation method
+
+I didn't implement the subdivision method for rendering the curves, I take
+a fixed number of samples along t and draw lines between these points. As
+a result the inner piece of the treble clef looks pretty bad if you tug it around some.
+
