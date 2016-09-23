@@ -14,6 +14,23 @@ and run `cargo build --release`. This will take a few minutes as some dependenci
 and compiled locally. After compiling the project you can run it with `cargo run --release`
 or directly find the binary under `./target/release/bezier`.
 
+## Running and Loading Curves
+
+To run the program and specify some curves or data files to load on the command line you can
+run through cargo with arguments to the program following a second --
+
+```
+cargo run --release -- <list of .dat and .crv files>
+```
+
+or directly:
+
+```
+./target/release/bezier <list of .data and .crv files>
+```
+
+You can also pass -h as an argument to print the program options.
+
 ## Controls
 
 - Left click somewhere on the scene to add a new control point to the active curve,
