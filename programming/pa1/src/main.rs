@@ -243,8 +243,6 @@ fn main() {
         },
     ).unwrap();
 
-    // Tracks if we're dragging a control point or not
-    //let mut moving_point = None;
     let mut shift_down = false;
     let mut selected_curve: i32 = 0;
     let mut ui_interaction = false;
@@ -277,6 +275,19 @@ fn main() {
                     height = h;
                     projection = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0,
                                                height as f32 / -200.0, height as f32 / 200.0, -1.0, -10.0);
+                },
+                Event::DroppedFile(ref p) => {
+                    if p.extension() == Some(OsStr::new("dat")) {
+                        let imported_curves = import(p);
+                        for c in imported_curves {
+                            curves.push(DisplayCurve::new(c, &display));
+                        }
+                    } else if p.extension() == Some(OsStr::new("crv")) {
+                        let imported_points = import_points(p);
+                        polyline_data = Some(Polyline::new(imported_points, &display));
+                    } else {
+                        println!("Unrecognized file type {}", p.display());
+                    }
                 },
                 _ => {}
             }
