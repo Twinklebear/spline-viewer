@@ -66,7 +66,7 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
         if shift_down {
             self.moving_point = None;
             if nearest.1 < point_size {
-                self.curve.control_points.remove(nearest.0);
+                self.curve.remove_point(nearest.0);
             }
         } else if let Some(p) = self.moving_point {
             self.curve.control_points[p] = pos;
@@ -74,7 +74,7 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
             self.moving_point = Some(nearest.0);
             self.curve.control_points[nearest.0] = pos;
         } else {
-            //self.moving_point = Some(self.curve.insert_point(pos));
+            self.moving_point = Some(self.curve.insert_point(pos));
         }
         if !self.curve.control_points.is_empty() {
             let step_size = 0.01;
@@ -136,6 +136,32 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
         ui.checkbox(im_str!("Draw Curve"), &mut self.draw_curve);
         ui.checkbox(im_str!("Draw Control Polygon"), &mut self.draw_control_poly);
         ui.checkbox(im_str!("Draw Control Points"), &mut self.draw_control_points);
+        let mut curve_changed = false;
+        // I use the open curve term b/c Elaine will be interacting with it and she
+        // calls clamped curves open.
+        let mut curve_clamped = self.curve.is_clamped();
+        if ui.checkbox(im_str!("Open Curve"), &mut curve_clamped) {
+            self.curve.set_clamped(curve_clamped);
+            curve_changed = true;
+        }
+        let mut curve_degree = self.curve.degree() as i32;
+        if ui.slider_int(im_str!("Curve Degree"), &mut curve_degree, 0, self.curve.max_possible_degree() as i32).build() {
+            self.curve.set_degree(curve_degree as usize);
+            curve_changed = true;
+        }
+        if curve_changed && !self.curve.control_points.is_empty() {
+            let step_size = 0.01;
+            let t_range = self.curve.knot_domain();
+            let steps = ((t_range.1 - t_range.0) / step_size) as usize;
+            self.control_points_vbo = VertexBuffer::new(self.display, &self.curve.control_points[..]).unwrap();
+            let mut points = Vec::with_capacity(steps);
+            // Just draw the first one for now
+            for s in 0..steps + 1 {
+                let t = step_size * s as f32 + t_range.0;
+                points.push(self.curve.point(t));
+            }
+            self.curve_points_vbo = VertexBuffer::new(self.display, &points[..]).unwrap();
+        }
         ui.color_edit3(im_str!("Curve Color"), &mut self.curve_color).build();
         ui.color_edit3(im_str!("Control Color"), &mut self.control_color).build();
     }

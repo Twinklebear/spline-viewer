@@ -7,16 +7,16 @@ use bezier::{Interpolate, ProjectToSegment};
 /// Represents a B-spline curve that will use polynomials of the specified degree
 /// to interpolate between the control points given the knots.
 #[derive(Clone, Debug)]
-pub struct BSpline<T: Interpolate + Copy> {
+pub struct BSpline<T: Interpolate + ProjectToSegment + Copy> {
     /// Degree of the polynomial that we use to make the curve segments
-    pub degree: usize,
+    degree: usize,
     /// Control points for the curve
     pub control_points: Vec<T>,
     /// The knot vector
-    pub knots: Vec<f32>,
+    knots: Vec<f32>,
 }
 
-impl<T: Interpolate + Copy> BSpline<T> {
+impl<T: Interpolate + ProjectToSegment + Copy + Debug> BSpline<T> {
     /// Create a new B-spline curve of the desired `degree` that will interpolate
     /// the `control_points` using the `knots`. The knots should be sorted in non-decreasing
     /// order otherwise they will be sorted for you, which may lead to undesired knots
@@ -36,6 +36,10 @@ impl<T: Interpolate + Copy> BSpline<T> {
         }
         knots.sort_by(|a, b| a.partial_cmp(b).unwrap());
         BSpline { degree: degree, control_points: control_points, knots: knots }
+    }
+    /// Create a new empty BSpline.
+    pub fn empty() -> BSpline<T> {
+        BSpline { degree: 0, control_points: Vec::new(), knots: Vec::new() }
     }
     /// Compute a point on the curve at `t`, the parameter **must** be in the inclusive range
     /// of values returned by `knot_domain`. If `t` is out of bounds this function will assert
@@ -61,12 +65,111 @@ impl<T: Interpolate + Copy> BSpline<T> {
     pub fn knots(&self) -> Iter<f32> {
         self.knots.iter()
     }
+    /// Get the curve degree
+    pub fn degree(&self) -> usize {
+        self.degree
+    }
     /// Get the min and max knot domain values for finding the `t` range to compute
     /// the curve over. The curve is only defined over the inclusive range `[min, max]`,
     /// passing a `t` value outside of this range will result in an assert on debug builds
     /// and likely a crash on release builds.
     pub fn knot_domain(&self) -> (f32, f32) {
         (self.knots[self.degree], self.knots[self.knots.len() - 1 - self.degree])
+    }
+    /// Get the max degree of curve that this set of control points can support
+    pub fn max_possible_degree(&self) -> usize {
+        if self.control_points.is_empty() {
+            0
+        } else {
+            self.control_points.len() - 1
+        }
+    }
+    /// Change the degree of the curve
+    pub fn set_degree(&mut self, degree: usize) {
+        assert!(degree <= self.max_possible_degree());
+        let was_clamped = self.is_clamped();
+        self.degree = degree;
+        self.fill_knot_vector(was_clamped, was_clamped);
+    }
+    /// Insert a new point into the curve. The point will be inserted near the existing
+    /// control points that it's closest too. Returns the index the point was
+    /// inserted at.
+    pub fn insert_point(&mut self, t: T) -> usize {
+        if self.control_points.len() == 1 {
+            self.control_points.push(t);
+            return 1;
+        }
+        // Go through all segments of the control polygon and find the nearest one
+        let nearest = self.control_points.windows(2).enumerate()
+            .map(|(i, x)| {
+                let proj = t.project(&x[0], &x[1]);
+                (i, proj.0, proj.1)
+            })
+            .fold((0, f32::MAX, 0.0), |acc, (i, d, l)| {
+                if d < acc.1 {
+                    (i, d, l)
+                } else {
+                    acc
+                }
+            });
+        // Check if we're appending or prepending the point
+        let idx = if nearest.0 == 0 && nearest.2 == 0.0 {
+            self.control_points.insert(0, t);
+            0
+        } else if nearest.0 == self.control_points.len() - 2 && nearest.2 == 1.0 {
+            self.control_points.push(t);
+            self.control_points.len() - 1
+        } else {
+            self.control_points.insert(nearest.0 + 1, t);
+            nearest.0 + 1
+        };
+        self.generate_knot_vector();
+        idx
+    }
+    /// Remove a point from the curve
+    pub fn remove_point(&mut self, i: usize) {
+        self.control_points.remove(i);
+        if self.control_points.len() <= self.degree {
+            self.degree -= 1;
+        }
+        self.generate_knot_vector();
+    }
+    /// Toggle whether the curve should be open/clamped (Elaine: floating/open)
+    pub fn set_clamped(&mut self, clamped: bool) {
+        self.fill_knot_vector(clamped, clamped);
+    }
+    pub fn is_clamped(&self) -> bool {
+        let left_clamped = self.knots.iter().take(self.degree + 1)
+            .fold(true, |acc, x| *x == self.knots[0] && acc);
+        let right_clamped = self.knots.iter().rev().take(self.degree + 1)
+            .fold(true, |acc, x| *x == self.knots[self.knots.len() - 1] && acc);
+        left_clamped && right_clamped
+    }
+    /// Compute the number of knots required for this curve
+    fn knots_required(&self) -> usize {
+        self.control_points.len() + self.degree + 1
+    }
+    /// Regenerate the knot vector to update it for changing degree/control points based on
+    /// whether it was open/clamped before (Elaine: terms floating/open)
+    fn generate_knot_vector(&mut self) {
+        // Check if we're clamped on the left/right (Elaine calls this end condition open)
+        let left_clamped = self.knots.iter().take(self.degree + 1)
+            .fold(true, |acc, x| *x == self.knots[0] && acc);
+        let right_clamped = self.knots.iter().rev().take(self.degree + 1)
+            .fold(true, |acc, x| *x == self.knots[self.knots.len() - 1] && acc);
+        self.fill_knot_vector(left_clamped, right_clamped);
+    }
+    /// Fill the knot vector for this curve for the new number of points/degree
+    fn fill_knot_vector(&mut self, left_clamped: bool, right_clamped: bool) {
+        self.knots.clear();
+        let mut x = 0.0;
+        for i in 0..self.knots_required() {
+            self.knots.push(x);
+            if !(left_clamped && i < self.degree)
+                && !(right_clamped && i >= self.knots_required() - 1 - self.degree) {
+                    x += 1.0;
+                }
+        }
     }
     /// Iteratively compute de Boor's B-spline algorithm, this computes the recursive
     /// de Boor algorithm tree from the bottom up. At each level we use the results

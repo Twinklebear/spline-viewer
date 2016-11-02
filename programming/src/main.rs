@@ -212,15 +212,7 @@ fn main() {
         }
     }
     */
-    let bspline_ex = {
-        let points = vec![Point::new(-1.5, -1.5), Point::new(-0.5, 1.5),
-                          Point::new(0.5, -1.5), Point::new(1.5, 1.5)];
-        let knots = vec![0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0, 2.0];
-        let degree = 3;
-        BSpline::new(degree, points, knots)
-    };
-
-    let mut curves = vec![DisplayCurve::new(bspline_ex, &display)];
+    let mut curves = vec![DisplayCurve::new(BSpline::empty(), &display)];
 
     println!("Got OpenGL: {:?}", display.get_opengl_version());
     println!("Got GLSL: {:?}", display.get_supported_glsl_version());
@@ -387,8 +379,8 @@ fn main() {
                     curves.remove(i);
                 }
                 if ui.small_button(im_str!("Add Curve")) {
-                    //curves.push(DisplayCurve::new(Bezier::new(Vec::new()), &display));
-                    //selected_curve = (curves.len() - 1) as i32;
+                    curves.push(DisplayCurve::new(BSpline::empty(), &display));
+                    selected_curve = (curves.len() - 1) as i32;
                 }
             });
         if let Some(ref mut pl) = polyline_data {
