@@ -10,6 +10,7 @@ extern crate regex;
 
 mod imgui_support;
 mod bezier;
+mod bspline;
 mod point;
 mod camera2d;
 mod display_curve;
@@ -32,6 +33,7 @@ use regex::Regex;
 
 use imgui_support::ImGuiSupport;
 use bezier::Bezier;
+use bspline::BSpline;
 use point::Point;
 use camera2d::Camera2d;
 use display_curve::DisplayCurve;
@@ -190,6 +192,7 @@ fn main() {
         .build_glium().unwrap();
 
     let mut polyline_data = None;
+    /*
     let mut curves = Vec::new();
     if let Some(files) = args.arg_file {
         for f in files {
@@ -208,6 +211,16 @@ fn main() {
             }
         }
     }
+    */
+    let bspline_ex = {
+        let points = vec![Point::new(-1.5, -1.5), Point::new(-0.5, 1.5),
+                          Point::new(0.5, -1.5), Point::new(1.5, 1.5)];
+        let knots = vec![0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0, 2.0];
+        let degree = 3;
+        BSpline::new(degree, points, knots)
+    };
+
+    let mut curves = vec![DisplayCurve::new(bspline_ex, &display)];
 
     println!("Got OpenGL: {:?}", display.get_opengl_version());
     println!("Got GLSL: {:?}", display.get_supported_glsl_version());
@@ -279,9 +292,11 @@ fn main() {
                 Event::DroppedFile(ref p) => {
                     if p.extension() == Some(OsStr::new("dat")) {
                         let imported_curves = import(p);
+                        /*
                         for c in imported_curves {
                             curves.push(DisplayCurve::new(c, &display));
                         }
+                        */
                     } else if p.extension() == Some(OsStr::new("crv")) {
                         let imported_points = import_points(p);
                         polyline_data = Some(Polyline::new(imported_points, &display));
@@ -372,8 +387,8 @@ fn main() {
                     curves.remove(i);
                 }
                 if ui.small_button(im_str!("Add Curve")) {
-                    curves.push(DisplayCurve::new(Bezier::new(Vec::new()), &display));
-                    selected_curve = (curves.len() - 1) as i32;
+                    //curves.push(DisplayCurve::new(Bezier::new(Vec::new()), &display));
+                    //selected_curve = (curves.len() - 1) as i32;
                 }
             });
         if let Some(ref mut pl) = polyline_data {
