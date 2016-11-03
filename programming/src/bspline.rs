@@ -30,12 +30,16 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> BSpline<T> {
         if control_points.len() <= degree {
             panic!("Too few control points for curve");
         }
-        if knots.len() != control_points.len() + degree + 1 {
+        if !knots.is_empty() && knots.len() != control_points.len() + degree + 1 {
             panic!(format!("Invalid number of knots, got {}, expected {}", knots.len(),
                 control_points.len() + degree + 1));
         }
         knots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        BSpline { degree: degree, control_points: control_points, knots: knots }
+        let mut spline = BSpline { degree: degree, control_points: control_points, knots: knots };
+        if spline.knots.is_empty() {
+            spline.fill_knot_vector(true, true);
+        }
+        spline
     }
     /// Create a new empty BSpline.
     pub fn empty() -> BSpline<T> {

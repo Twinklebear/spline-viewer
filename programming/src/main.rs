@@ -39,63 +39,59 @@ use camera2d::Camera2d;
 use display_curve::DisplayCurve;
 use polyline::Polyline;
 
-/// Import a list of Bezier curves from the file
-fn import<P: AsRef<Path>>(path: P) -> Vec<Bezier<Point>> {
+/// Import a list of BSpline curves from the file
+fn import<P: AsRef<Path>>(path: P) -> BSpline<Point> {
     let file = match File::open(path) {
         Ok(f) => f,
         Err(e) => panic!("Failed to open file: {}", e),
     };
     let reader = BufReader::new(file);
-    let curve_start = Regex::new("(P|Q), *(\\d+)").unwrap();
-    let mut curves = Vec::new();
     let mut points = Vec::new();
-    let mut num_curves = 0;
-    let mut rational_points = false;
+    let mut knots = Vec::new();
+    let mut degree: Option<usize> = None;
+    let mut num_points = 0;
+    let mut pts_read = 0;
+    let mut read_knots = false;
     for line in reader.lines() {
         let l = line.unwrap();
         // Skip empty lines and comments
         if l.is_empty() || l.starts_with("#") {
             continue;
         }
-        if num_curves == 0 {
-            num_curves = l.parse().unwrap();
-            println!("Expecting {} curve(s) from the file", num_curves);
+        if degree.is_none() {
+            degree = Some(l.trim().parse().unwrap());
+            println!("Curve has degree {}", degree.expect("no degree set"));
             continue;
         }
-        if let Some(caps) = curve_start.captures(&l[..]) {
-            // If we had a previous curve we're done parsing it
-            if !points.is_empty() {
-                curves.push(Bezier::new(points));
-                points = Vec::new();
-            }
-
-            if caps.at(1) == Some("Q") {
-                rational_points = true;
-                println!("Expecting {} control points for rational curve #{} in file",
-                         caps.at(2).unwrap(), curves.len());
-            } else {
-                rational_points = false;
-                println!("Expecting {} control points for polynomial curve #{} in file",
-                         caps.at(2).unwrap(), curves.len());
-            }
+        if num_points == 0 {
+            num_points = l.trim().parse().unwrap();
+            println!("Expecting {} points for control polygon", num_points);
             continue;
         }
-        let coords: Vec<_> = l.split(',').collect();
-        assert!(coords.len() >= 2);
-        let x = coords[0].trim().parse().unwrap();
-        let y = coords[1].trim().parse().unwrap();
-        if rational_points {
-            //let w = coords[2].trim().parse().unwrap();
-            //x /= w;
-            //y /= w;
+        if pts_read < num_points {
+            let coords: Vec<_> = l.split(',').collect();
+            assert!(coords.len() >= 2);
+            let x = coords[0].trim().parse().unwrap();
+            let y = coords[1].trim().parse().unwrap();
+            points.push(Point::new(x, y));
+            pts_read += 1;
+            continue;
         }
-        points.push(Point::new(x, y));
+        if read_knots {
+            let coords: Vec<_> = l.split(',').collect();
+            for k in coords {
+                knots.push(k.trim().parse().unwrap());
+            }
+            break;
+        }
+        let knots_provided: usize = l.trim().parse().unwrap();
+        println!("knots provided? {}", knots_provided == 1);
+        if knots_provided == 0 {
+            break;
+        }
+        read_knots = true;
     }
-    // Save the last curve we may have parsed
-    if !points.is_empty() {
-        curves.push(Bezier::new(points));
-    }
-    curves
+    BSpline::new(degree.expect("No degree specified"), points, knots)
 }
 /// Import a list of points from the file
 fn import_points<P: AsRef<Path>>(path: P) -> Vec<Point> {
@@ -146,6 +142,7 @@ fn import_points<P: AsRef<Path>>(path: P) -> Vec<Point> {
     points
 }
 /// Save the curves being displayed to a file
+/// TODO: Save the BSplines out
 fn export<P: AsRef<Path>>(path: P, curves: &Vec<DisplayCurve<GlutinFacade>>) {
     let file = match File::create(path) {
         Ok(f) => f,
@@ -192,17 +189,12 @@ fn main() {
         .build_glium().unwrap();
 
     let mut polyline_data = None;
-    /*
     let mut curves = Vec::new();
     if let Some(files) = args.arg_file {
         for f in files {
             let p = Path::new(&f);
-
             if p.extension() == Some(OsStr::new("dat")) {
-                let imported_curves = import(p);
-                for c in imported_curves {
-                    curves.push(DisplayCurve::new(c, &display));
-                }
+                curves.push(DisplayCurve::new(import(p), &display));;
             } else if p.extension() == Some(OsStr::new("crv")) {
                 let imported_points = import_points(p);
                 polyline_data = Some(Polyline::new(imported_points, &display));
@@ -211,8 +203,6 @@ fn main() {
             }
         }
     }
-    */
-    let mut curves = vec![DisplayCurve::new(BSpline::empty(), &display)];
 
     println!("Got OpenGL: {:?}", display.get_opengl_version());
     println!("Got GLSL: {:?}", display.get_supported_glsl_version());
@@ -283,12 +273,7 @@ fn main() {
                 },
                 Event::DroppedFile(ref p) => {
                     if p.extension() == Some(OsStr::new("dat")) {
-                        let imported_curves = import(p);
-                        /*
-                        for c in imported_curves {
-                            curves.push(DisplayCurve::new(c, &display));
-                        }
-                        */
+                        curves.push(DisplayCurve::new(import(p), &display));
                     } else if p.extension() == Some(OsStr::new("crv")) {
                         let imported_points = import_points(p);
                         polyline_data = Some(Polyline::new(imported_points, &display));

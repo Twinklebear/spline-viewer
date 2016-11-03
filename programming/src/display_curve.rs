@@ -145,9 +145,13 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
             curve_changed = true;
         }
         let mut curve_degree = self.curve.degree() as i32;
-        if ui.slider_int(im_str!("Curve Degree"), &mut curve_degree, 0, self.curve.max_possible_degree() as i32).build() {
-            self.curve.set_degree(curve_degree as usize);
-            curve_changed = true;
+        if ui.slider_int(im_str!("Curve Degree"), &mut curve_degree, 1,
+            self.curve.max_possible_degree() as i32).build()
+        {
+            if self.curve.max_possible_degree() != 0 {
+                self.curve.set_degree(curve_degree as usize);
+                curve_changed = true;
+            }
         }
         if curve_changed && !self.curve.control_points.is_empty() {
             let step_size = 0.01;
