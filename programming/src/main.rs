@@ -141,22 +141,6 @@ fn import_points<P: AsRef<Path>>(path: P) -> Vec<Point> {
     }
     points
 }
-/// Save the curves being displayed to a file
-/// TODO: Save the BSplines out
-fn export<P: AsRef<Path>>(path: P, curves: &Vec<DisplayCurve<GlutinFacade>>) {
-    let file = match File::create(path) {
-        Ok(f) => f,
-        Err(e) => panic!("Failed to create file: {}", e),
-    };
-    let mut writer = BufWriter::new(file);
-    write!(&mut writer, "{}\n", curves.len()).unwrap();
-    for c in curves {
-        write!(&mut writer, "P,{}\n", c.curve.control_points.len()).unwrap();
-        for p in c.curve.control_points() {
-            write!(&mut writer, "{}, {}\n", p.pos[0], p.pos[1]).unwrap();
-        }
-    }
-}
 
 const USAGE: &'static str = "
 Usage:
@@ -241,7 +225,6 @@ fn main() {
     let mut shift_down = false;
     let mut selected_curve: i32 = 0;
     let mut ui_interaction = false;
-    let mut file_output_name: String = iter::repeat('\0').take(64).collect();
     let mut color_attenuation = true;
     'outer: loop {
         for e in display.poll_events() {
@@ -329,19 +312,6 @@ fn main() {
                 ui.text(im_str!("Framerate: {:.3} FPS ({:.3} ms)", fps, frame_time));
                 ui.text(im_str!("OpenGL Version: {}.{}", gl_version.1, gl_version.2));
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
-                ui.input_text(im_str!("Output File"), &mut file_output_name).build();
-                if ui.small_button(im_str!("Save Curve")) {
-                    if !file_output_name.starts_with('\0') {
-                        let mut path = PathBuf::from("./");
-                        path.push(file_output_name.trim_matches('\0'));
-                        path.set_extension("dat");
-                        export(path, &curves);
-                        ui.open_popup(im_str!("curves_saved"));
-                        file_output_name = iter::repeat('\0').take(64).collect();
-                    } else {
-                        ui.open_popup(im_str!("need_file_name"));
-                    }
-                }
                 ui.popup(im_str!("curves_saved"), || ui.text(im_str!("Curves saved")));
                 ui.popup(im_str!("need_file_name"), || ui.text(im_str!("A file name is required")));
                 ui.checkbox(im_str!("Fade Unselected Curves"), &mut color_attenuation);
