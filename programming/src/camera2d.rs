@@ -8,7 +8,7 @@ pub struct Camera2d {
 
 impl Camera2d {
     pub fn new() -> Camera2d {
-        Camera2d { position: vec3(0.0, 0.0, 0.0), zoom: 1.0 }
+        Camera2d { position: vec3(0.0, 0.0, 2.0), zoom: 1.0 }
     }
     pub fn translate(&mut self, x: f32, y: f32) {
         self.position += vec3(x, y, 0.0) / self.zoom;
