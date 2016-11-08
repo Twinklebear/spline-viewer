@@ -29,7 +29,7 @@ use std::ffi::OsStr;
 use glium::{DisplayBuild, Surface, DrawParameters};
 use glium::glutin::{self, ElementState, Event, VirtualKeyCode, MouseButton};
 use glium::backend::glutin_backend::GlutinFacade;
-use cgmath::{SquareMatrix, Transform, Vector2};
+use cgmath::{SquareMatrix, Transform, Vector2, Matrix4};
 use docopt::Docopt;
 use regex::Regex;
 
@@ -198,8 +198,15 @@ fn main() {
     let mut imgui_renderer = imgui::glium_renderer::Renderer::init(&mut imgui.imgui, &display).unwrap();
 
     let mut camera_2d = Camera2d::new();
-    let mut arcball_camera = ArcballCamera::<f32>::new();
-    arcball_camera.set_distance(10.0).set_spin_speed(0.5).set_zoom_speed(5.0);
+    let mut arcball_camera = {
+        use cgmath::{Point3, Vector3};
+        let look_at = Matrix4::<f32>::look_at(Point3::new(0.0, 0.0, 6.0),
+                                              Point3::new(0.0, 0.0, 0.0),
+                                              Vector3::new(0.0, 1.0, 0.0));
+        let inv_screen = [1.0 / width as f32, 1.0 / height as f32];
+        ArcballCamera::new(&look_at, 1.0, 1.0, inv_screen)
+    };
+
     let mut ortho_proj = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
                                        height as f32 / 200.0, -1.0, -1000.0);
     let mut persp_proj = cgmath::perspective(cgmath::Deg(65.0), width as f32 / height as f32, 1.0, 1000.0);
@@ -253,34 +260,15 @@ fn main() {
                     camera_2d.translate(delta.0, delta.1);
                 },
                 Event::MouseMoved(x, y) if imgui.mouse_pressed.0 && !ui_interaction && render_3d => {
-                        let unproj = (persp_proj * arcball_camera.get_transform_mat()).invert().expect("Uninvertable proj * view!?");
-                        let click_pos = cgmath::Vector4::<f32>::new(2.0 * x as f32 / width as f32 - 1.0,
-                                                                    -2.0 * y as f32 / height as f32 + 1.0, 1.0, 1.0);
-                        let mut pos = unproj * click_pos;
-                        pos = pos / pos.w;
-                        pos.x = pos.x / width as f32;
-                        pos.y = pos.y / height as f32;
-                        arcball_camera.update(Vector2::<f32>::new(pos.x, pos.y));
+                    arcball_camera.rotate(Vector2::<f32>::new(imgui.mouse_pos.0 as f32, imgui.mouse_pos.1 as f32),
+                                          Vector2::<f32>::new(x as f32, y as f32), 0.16);
                 },
                 Event::MouseInput(state, button) => {
-                    if !render_3d {
-                        if state == ElementState::Released && button == MouseButton::Left && !curves.is_empty() {
+                    if !render_3d && state == ElementState::Released
+                        && button == MouseButton::Left && !curves.is_empty()
+                        {
                             curves[selected_curve as usize].release_point();
                         }
-                    } else {
-                        if state == ElementState::Pressed && button == MouseButton::Left {
-                            let unproj = (persp_proj * arcball_camera.get_transform_mat()).invert().expect("Uninvertable proj * view!?");
-                            let click_pos = cgmath::Vector4::<f32>::new(2.0 * imgui.mouse_pos.0 as f32 / width as f32 - 1.0,
-                                                                        2.0 * imgui.mouse_pos.1 as f32 / height as f32 - 1.0, 1.0, 1.0);
-                            let mut pos = unproj * click_pos;
-                            pos = pos / pos.w;
-                            pos.x = pos.x / width as f32;
-                            pos.y = pos.y / height as f32;
-                            arcball_camera.rotate_start(Vector2::<f32>::new(pos.x, pos.y));
-                        } else if state == ElementState::Released && button == MouseButton::Left {
-                            arcball_camera.rotate_end();
-                        }
-                    }
                 },
                 Event::Resized(w, h) => {
                     width = w;
@@ -306,7 +294,7 @@ fn main() {
         if !ui_interaction {
             if render_3d {
                 if imgui.mouse_wheel != 0.0 {
-                    arcball_camera.zoom(-imgui.mouse_wheel / (fbscale.1 * 10.0));
+                    //arcball_camera.zoom(-imgui.mouse_wheel / (fbscale.1 * 10.0));
                 }
             } else {
                 if imgui.mouse_wheel != 0.0 {
@@ -335,7 +323,7 @@ fn main() {
             if !render_3d {
                 (ortho_proj * camera_2d.get_mat4()).into()
             } else {
-                (persp_proj * arcball_camera.get_transform_mat()).into()
+                (persp_proj * arcball_camera.get_mat4()).into()
             };
         let attenuation = if color_attenuation { 0.4 } else { 1.0 };
         for (i, c) in curves.iter().enumerate() {
