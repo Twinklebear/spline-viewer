@@ -15,14 +15,14 @@ pub fn clamp(x: f32, min: f32, max: f32) -> f32 {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Point {
-    pub pos: [f32; 2],
+    pub pos: [f32; 3],
 }
 impl Point {
-    pub fn new(x: f32, y: f32) -> Point {
-        Point { pos: [x, y] }
+    pub fn new(x: f32, y: f32, z: f32) -> Point {
+        Point { pos: [x, y, z] }
     }
     pub fn dot(&self, a: &Point) -> f32 {
-        self.pos[0] * a.pos[0] + self.pos[1] * a.pos[1]
+        self.pos[0] * a.pos[0] + self.pos[1] * a.pos[1] + self.pos[2] * a.pos[2]
     }
     pub fn length(&self) -> f32 {
         f32::sqrt(self.dot(&self))
@@ -33,25 +33,25 @@ implement_vertex!(Point, pos);
 impl Mul<f32> for Point {
     type Output = Point;
     fn mul(self, rhs: f32) -> Point {
-        Point { pos: [self.pos[0] * rhs, self.pos[1] * rhs] }
+        Point { pos: [self.pos[0] * rhs, self.pos[1] * rhs, self.pos[2] * rhs] }
     }
 }
 impl Div<f32> for Point {
     type Output = Point;
     fn div(self, rhs: f32) -> Point {
-        Point { pos: [self.pos[0] / rhs, self.pos[1] / rhs] }
+        Point { pos: [self.pos[0] / rhs, self.pos[1] / rhs, self.pos[2] / rhs] }
     }
 }
 impl Add for Point {
     type Output = Point;
     fn add(self, rhs: Point) -> Point {
-        Point { pos: [self.pos[0] + rhs.pos[0], self.pos[1] + rhs.pos[1]] }
+        Point { pos: [self.pos[0] + rhs.pos[0], self.pos[1] + rhs.pos[1], self.pos[2] + rhs.pos[2]] }
     }
 }
 impl Sub for Point {
     type Output = Point;
     fn sub(self, rhs: Point) -> Point {
-        Point { pos: [self.pos[0] - rhs.pos[0], self.pos[1] - rhs.pos[1]] }
+        Point { pos: [self.pos[0] - rhs.pos[0], self.pos[1] - rhs.pos[1], self.pos[2] - rhs.pos[2]] }
     }
 }
 impl ProjectToSegment for Point {

@@ -15,6 +15,7 @@ mod bspline;
 mod point;
 mod camera2d;
 mod display_curve;
+mod display_curve3d;
 mod polyline;
 mod arcball_camera;
 
@@ -39,10 +40,11 @@ use bspline::BSpline;
 use point::Point;
 use camera2d::Camera2d;
 use display_curve::DisplayCurve;
+use display_curve3d::DisplayCurve3D;
 use polyline::Polyline;
 use arcball_camera::ArcballCamera;
 
-/// Import a list of BSpline curves from the file
+/// Import a 2D BSpline curve from the file
 fn import<P: AsRef<Path>>(path: P) -> BSpline<Point> {
     let file = match File::open(path) {
         Ok(f) => f,
@@ -76,7 +78,7 @@ fn import<P: AsRef<Path>>(path: P) -> BSpline<Point> {
             assert!(coords.len() >= 2);
             let x = coords[0].trim().parse().unwrap();
             let y = coords[1].trim().parse().unwrap();
-            points.push(Point::new(x, y));
+            points.push(Point::new(x, y, 0.0));
             pts_read += 1;
             continue;
         }
@@ -96,53 +98,62 @@ fn import<P: AsRef<Path>>(path: P) -> BSpline<Point> {
     }
     BSpline::new(degree.expect("No degree specified"), points, knots)
 }
-/// Import a list of points from the file
-fn import_points<P: AsRef<Path>>(path: P) -> Vec<Point> {
+
+/// Import a of 3D BSpline curves from the file
+fn import3d<P: AsRef<Path>>(path: P) -> BSpline<Point> {
     let file = match File::open(path) {
         Ok(f) => f,
         Err(e) => panic!("Failed to open file: {}", e),
     };
     let reader = BufReader::new(file);
-    let curve_start = Regex::new("(P|Q), *(\\d+)").unwrap();
     let mut points = Vec::new();
-    let mut rational_points = false;
-    let mut num_curves = 0;
+    let mut knots = Vec::new();
+    let mut degree: Option<usize> = None;
+    let mut num_points = 0;
+    let mut pts_read = 0;
+    let mut read_knots = false;
     for line in reader.lines() {
         let l = line.unwrap();
         // Skip empty lines and comments
         if l.is_empty() || l.starts_with("#") {
             continue;
         }
-        if num_curves == 0 {
-            num_curves = l.parse().unwrap();
-            println!("Expecting {} set of points from the file", num_curves);
-            if num_curves > 1 {
-                println!("More than 1 set of point!? Makes no sense?");
-            }
+        if degree.is_none() {
+            let header: Vec<_> = l.split(' ').collect();
+            degree = Some(header[1].trim().parse().unwrap());
+            println!("Curve has degree {}", degree.expect("no degree set"));
             continue;
         }
-        if let Some(caps) = curve_start.captures(&l[..]) {
-            if caps.at(1) == Some("Q") {
-                rational_points = true;
-                println!("Expecting {} rational points in file", caps.at(2).unwrap());
-            } else {
-                rational_points = false;
-                println!("Expecting {} polynomial points in file", caps.at(2).unwrap());
-            }
+        if num_points == 0 {
+            num_points = l.trim().parse().unwrap();
+            println!("Expecting {} points for control polygon", num_points);
             continue;
         }
-        let coords: Vec<_> = l.split(',').collect();
-        assert!(coords.len() >= 2);
-        let x = coords[0].trim().parse().unwrap();
-        let y = coords[1].trim().parse().unwrap();
-        if rational_points {
-            //let w = coords[2].trim().parse().unwrap();
-            //x /= w;
-            //y /= w;
+        if pts_read < num_points {
+            let coords: Vec<_> = l.split(',').collect();
+            assert!(coords.len() >= 2);
+            let x = coords[0].trim().parse().unwrap();
+            let y = coords[1].trim().parse().unwrap();
+            let z = coords[2].trim().parse().unwrap();
+            points.push(Point::new(x, y, z));
+            pts_read += 1;
+            continue;
         }
-        points.push(Point::new(x, y));
+        if read_knots {
+            let coords: Vec<_> = l.split(',').collect();
+            for k in coords {
+                knots.push(k.trim().parse().unwrap());
+            }
+            break;
+        }
+        let knots_provided: usize = l.trim().parse().unwrap();
+        println!("knots provided? {}", knots_provided == 1);
+        if knots_provided == 0 {
+            break;
+        }
+        read_knots = true;
     }
-    points
+    BSpline::new(degree.expect("No degree specified"), points, knots)
 }
 
 const USAGE: &'static str = "
@@ -175,16 +186,15 @@ fn main() {
         .with_vsync()
         .build_glium().unwrap();
 
-    let mut polyline_data = None;
     let mut curves = Vec::new();
+    let mut curves3d = Vec::new();
     if let Some(files) = args.arg_file {
         for f in files {
             let p = Path::new(&f);
             if p.extension() == Some(OsStr::new("dat")) {
                 curves.push(DisplayCurve::new(import(p), &display));;
-            } else if p.extension() == Some(OsStr::new("crv")) {
-                let imported_points = import_points(p);
-                polyline_data = Some(Polyline::new(imported_points, &display));
+            } else if p.extension() == Some(OsStr::new("txt")) {
+                curves3d.push(DisplayCurve3D::new(import3d(p), &display));
             } else {
                 println!("Unrecognized file type {}", f);
             }
@@ -219,9 +229,9 @@ fn main() {
             vertex: "
                 #version 330 core
                 uniform mat4 proj_view;
-                in vec2 pos;
+                in vec3 pos;
                 void main(void) {
-                    gl_Position = proj_view * vec4(pos, 0.0, 1.0);
+                    gl_Position = proj_view * vec4(pos, 1.0);
                 }
                 ",
             fragment: "
@@ -264,13 +274,14 @@ fn main() {
                         arcball_camera.rotate(Vector2::new(imgui.mouse_pos.0 as f32, imgui.mouse_pos.1 as f32),
                                               Vector2::new(x as f32, y as f32), 0.16);
                     } else if imgui.mouse_pressed.1 {
-                        let mouse_delta = Vector2::new((x - imgui.mouse_pos.0) as f32, -(y - imgui.mouse_pos.1) as f32);
+                        let mouse_delta = Vector2::new((x - imgui.mouse_pos.0) as f32,
+                                                       -(y - imgui.mouse_pos.1) as f32);
                         arcball_camera.pan(mouse_delta, 0.16);
                     }
                 },
                 Event::MouseInput(state, button) => {
                     if !render_3d && state == ElementState::Released
-                        && button == MouseButton::Left && !curves.is_empty()
+                        && button == MouseButton::Left && selected_curve < curves.len() as i32
                         {
                             curves[selected_curve as usize].release_point();
                         }
@@ -285,10 +296,9 @@ fn main() {
                 },
                 Event::DroppedFile(ref p) => {
                     if p.extension() == Some(OsStr::new("dat")) {
-                        curves.push(DisplayCurve::new(import(p), &display));
-                    } else if p.extension() == Some(OsStr::new("crv")) {
-                        let imported_points = import_points(p);
-                        polyline_data = Some(Polyline::new(imported_points, &display));
+                        curves.push(DisplayCurve::new(import(p), &display));;
+                    } else if p.extension() == Some(OsStr::new("txt")) {
+                        curves3d.push(DisplayCurve3D::new(import3d(p), &display));
                     } else {
                         println!("Unrecognized file type {}", p.display());
                     }
@@ -306,14 +316,14 @@ fn main() {
                 if imgui.mouse_wheel != 0.0 {
                     camera_2d.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
                 }
-                if imgui.mouse_pressed.0 && !curves.is_empty() {
+                if imgui.mouse_pressed.0 && selected_curve < curves.len() as i32 {
                     let unproj = (ortho_proj * camera_2d.get_mat4()).invert().expect("Uninvertable proj * view!?");
                     let click_pos =
                         cgmath::Point3::<f32>::new(2.0 * imgui.mouse_pos.0 as f32 / width as f32 - 1.0,
                                                    -2.0 * imgui.mouse_pos.1 as f32 / height as f32 + 1.0,
                                                    0.0);
                     let pos = unproj.transform_point(click_pos);
-                    let pos = Point::new(pos.x, pos.y);
+                    let pos = Point::new(pos.x, pos.y, 0.0);
                     curves[selected_curve as usize].handle_click(pos, shift_down, camera_2d.zoom);
                 }
             }
@@ -332,12 +342,20 @@ fn main() {
                 (persp_proj * arcball_camera.get_mat4()).into()
             };
         let attenuation = if color_attenuation { 0.4 } else { 1.0 };
+
         for (i, c) in curves.iter().enumerate() {
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == selected_curve,
                      attenuation);
         }
-        if let Some(ref pl) = polyline_data {
-            pl.render(&mut target, &shader_program, &draw_params, &proj_view);
+        for (i, c) in curves3d.iter().enumerate() {
+            let sel_curve =
+                if selected_curve as usize >= curves.len() {
+                    selected_curve - curves.len() as i32
+                } else {
+                    selected_curve
+                };
+            c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
+                     attenuation);
         }
 
         let ui = imgui.render_ui(&display);
@@ -351,8 +369,6 @@ fn main() {
                 ui.text(im_str!("Framerate: {:.3} FPS ({:.3} ms)", fps, frame_time));
                 ui.text(im_str!("OpenGL Version: {}.{}", gl_version.1, gl_version.2));
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
-                ui.popup(im_str!("curves_saved"), || ui.text(im_str!("Curves saved")));
-                ui.popup(im_str!("need_file_name"), || ui.text(im_str!("A file name is required")));
                 ui.checkbox(im_str!("Fade Unselected Curves"), &mut color_attenuation);
                 ui.checkbox(im_str!("Render 3D"), &mut render_3d);
 
@@ -367,22 +383,32 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
+                for (i, c) in curves3d.iter_mut().enumerate() {
+                    let id = i + curves.len();
+                    ui.separator();
+                    imgui_support::push_id_int(id as i32);
+                    imgui_support::radio_button(im_str!("Select Curve"), &mut selected_curve, id as i32);
+                    c.draw_ui(&ui);
+                    if ui.small_button(im_str!("Remove Curve")) {
+                        removing = Some(id);
+                    }
+                    imgui_support::pop_id();
+                }
                 if let Some(i) = removing {
                     if selected_curve as usize >= i && selected_curve != 0 {
                         selected_curve -= 1;
                     }
-                    curves.remove(i);
+                    if i >= curves.len() {
+                        curves3d.remove(i - curves.len());
+                    } else {
+                        curves.remove(i);
+                    }
                 }
                 if ui.small_button(im_str!("Add Curve")) {
                     curves.push(DisplayCurve::new(BSpline::empty(), &display));
                     selected_curve = (curves.len() - 1) as i32;
                 }
             });
-        if let Some(ref mut pl) = polyline_data {
-            ui.window(im_str!("Polyline Data"))
-                .size((300.0, 100.0), imgui::ImGuiSetCond_FirstUseEver)
-                .build(|| pl.draw_ui(&ui));
-        }
         imgui_renderer.render(&mut target, ui).unwrap();
 
         target.finish().unwrap();

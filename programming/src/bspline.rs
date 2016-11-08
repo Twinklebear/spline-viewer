@@ -7,7 +7,7 @@ use bezier::{Interpolate, ProjectToSegment};
 /// Represents a B-spline curve that will use polynomials of the specified degree
 /// to interpolate between the control points given the knots.
 #[derive(Clone, Debug)]
-pub struct BSpline<T: Interpolate + ProjectToSegment + Copy> {
+pub struct BSpline<T> {
     /// Degree of the polynomial that we use to make the curve segments
     degree: usize,
     /// Control points for the curve
@@ -16,7 +16,7 @@ pub struct BSpline<T: Interpolate + ProjectToSegment + Copy> {
     knots: Vec<f32>,
 }
 
-impl<T: Interpolate + ProjectToSegment + Copy + Debug> BSpline<T> {
+impl<T: Interpolate + Copy + Debug> BSpline<T> {
     /// Create a new B-spline curve of the desired `degree` that will interpolate
     /// the `control_points` using the `knots`. The knots should be sorted in non-decreasing
     /// order otherwise they will be sorted for you, which may lead to undesired knots
@@ -95,41 +95,6 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> BSpline<T> {
         self.degree = degree;
         self.fill_knot_vector(was_clamped, was_clamped);
     }
-    /// Insert a new point into the curve. The point will be inserted near the existing
-    /// control points that it's closest too. Returns the index the point was
-    /// inserted at.
-    pub fn insert_point(&mut self, t: T) -> usize {
-        if self.control_points.len() == 1 {
-            self.control_points.push(t);
-            return 1;
-        }
-        // Go through all segments of the control polygon and find the nearest one
-        let nearest = self.control_points.windows(2).enumerate()
-            .map(|(i, x)| {
-                let proj = t.project(&x[0], &x[1]);
-                (i, proj.0, proj.1)
-            })
-            .fold((0, f32::MAX, 0.0), |acc, (i, d, l)| {
-                if d < acc.1 {
-                    (i, d, l)
-                } else {
-                    acc
-                }
-            });
-        // Check if we're appending or prepending the point
-        let idx = if nearest.0 == 0 && nearest.2 == 0.0 {
-            self.control_points.insert(0, t);
-            0
-        } else if nearest.0 == self.control_points.len() - 2 && nearest.2 == 1.0 {
-            self.control_points.push(t);
-            self.control_points.len() - 1
-        } else {
-            self.control_points.insert(nearest.0 + 1, t);
-            nearest.0 + 1
-        };
-        self.generate_knot_vector();
-        idx
-    }
     /// Remove a point from the curve
     pub fn remove_point(&mut self, i: usize) {
         self.control_points.remove(i);
@@ -196,6 +161,44 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> BSpline<T> {
             }
         }
         tmp[0]
+    }
+}
+
+impl<T: Interpolate + ProjectToSegment + Copy + Debug> BSpline<T> {
+    /// Insert a new point into the curve. The point will be inserted near the existing
+    /// control points that it's closest too. Returns the index the point was
+    /// inserted at.
+    pub fn insert_point(&mut self, t: T) -> usize {
+        if self.control_points.len() == 1 {
+            self.control_points.push(t);
+            return 1;
+        }
+        // Go through all segments of the control polygon and find the nearest one
+        let nearest = self.control_points.windows(2).enumerate()
+            .map(|(i, x)| {
+                let proj = t.project(&x[0], &x[1]);
+                (i, proj.0, proj.1)
+            })
+            .fold((0, f32::MAX, 0.0), |acc, (i, d, l)| {
+                if d < acc.1 {
+                    (i, d, l)
+                } else {
+                    acc
+                }
+            });
+        // Check if we're appending or prepending the point
+        let idx = if nearest.0 == 0 && nearest.2 == 0.0 {
+            self.control_points.insert(0, t);
+            0
+        } else if nearest.0 == self.control_points.len() - 2 && nearest.2 == 1.0 {
+            self.control_points.push(t);
+            self.control_points.len() - 1
+        } else {
+            self.control_points.insert(nearest.0 + 1, t);
+            nearest.0 + 1
+        };
+        self.generate_knot_vector();
+        idx
     }
 }
 

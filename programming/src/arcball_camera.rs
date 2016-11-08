@@ -3,15 +3,7 @@ extern crate cgmath;
 use cgmath::prelude::*;
 use cgmath::{Basis3, Matrix4, Quaternion, Rad, Vector2, Vector3};
 
-fn clamp(x: f32, min: f32, max: f32) -> f32 {
-	if x < min {
-		min
-	} else if x > max {
-		max
-	} else {
-		x
-	}
-}
+use point::clamp;
 
 pub struct ArcballCamera {
 	look_at: Matrix4<f32>,
