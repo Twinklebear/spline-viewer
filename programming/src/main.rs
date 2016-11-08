@@ -218,8 +218,8 @@ fn main() {
     };
 
     let mut ortho_proj = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
-                                       height as f32 / 200.0, -1.0, -1000.0);
-    let mut persp_proj = cgmath::perspective(cgmath::Deg(65.0), width as f32 / height as f32, 1.0, 1000.0);
+                                       height as f32 / 200.0, -0.01, -100.0);
+    let mut persp_proj = cgmath::perspective(cgmath::Deg(65.0), width as f32 / height as f32, 0.01, 100.0);
     let draw_params = DrawParameters {
         point_size: Some(6.0),
         .. Default::default()
