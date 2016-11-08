@@ -204,7 +204,7 @@ fn main() {
                                               Point3::new(0.0, 0.0, 0.0),
                                               Vector3::new(0.0, 1.0, 0.0));
         let inv_screen = [1.0 / width as f32, 1.0 / height as f32];
-        ArcballCamera::new(&look_at, 1.0, 1.0, inv_screen)
+        ArcballCamera::new(&look_at, 1.0, 5.0, inv_screen)
     };
 
     let mut ortho_proj = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
@@ -259,9 +259,14 @@ fn main() {
                     -(y - imgui.mouse_pos.1) as f32 / (fbscale.1 * 100.0));
                     camera_2d.translate(delta.0, delta.1);
                 },
-                Event::MouseMoved(x, y) if imgui.mouse_pressed.0 && !ui_interaction && render_3d => {
-                    arcball_camera.rotate(Vector2::<f32>::new(imgui.mouse_pos.0 as f32, imgui.mouse_pos.1 as f32),
-                                          Vector2::<f32>::new(x as f32, y as f32), 0.16);
+                Event::MouseMoved(x, y) if !ui_interaction && render_3d => {
+                    if imgui.mouse_pressed.0 {
+                        arcball_camera.rotate(Vector2::new(imgui.mouse_pos.0 as f32, imgui.mouse_pos.1 as f32),
+                                              Vector2::new(x as f32, y as f32), 0.16);
+                    } else if imgui.mouse_pressed.1 {
+                        let mouse_delta = Vector2::new((x - imgui.mouse_pos.0) as f32, -(y - imgui.mouse_pos.1) as f32);
+                        arcball_camera.pan(mouse_delta, 0.16);
+                    }
                 },
                 Event::MouseInput(state, button) => {
                     if !render_3d && state == ElementState::Released
@@ -276,6 +281,7 @@ fn main() {
                     ortho_proj = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0,
                                                height as f32 / -200.0, height as f32 / 200.0, -1.0, -1000.0);
                     persp_proj = cgmath::perspective(cgmath::Deg(65.0), width as f32 / height as f32, 1.0, 1000.0);
+                    arcball_camera.update_screen(width as f32, height as f32);
                 },
                 Event::DroppedFile(ref p) => {
                     if p.extension() == Some(OsStr::new("dat")) {
@@ -294,7 +300,7 @@ fn main() {
         if !ui_interaction {
             if render_3d {
                 if imgui.mouse_wheel != 0.0 {
-                    //arcball_camera.zoom(-imgui.mouse_wheel / (fbscale.1 * 10.0));
+                    arcball_camera.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0), 0.16);
                 }
             } else {
                 if imgui.mouse_wheel != 0.0 {

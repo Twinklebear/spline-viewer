@@ -52,6 +52,22 @@ impl ArcballCamera {
 		self.camera = self.translation * self.look_at * Matrix4::from(self.rotation);
 		self.inv_camera = self.camera.invert().unwrap();
 	}
+	pub fn zoom(&mut self, amount: f32, elapsed: f32) {
+		let motion = Vector3::new(0.0, 0.0, amount);
+		self.translation = Matrix4::from_translation(motion * self.motion_speed * elapsed * 8.0) * self.translation;
+		self.camera = self.translation * self.look_at * Matrix4::from(self.rotation);
+		self.inv_camera = self.camera.invert().unwrap();
+	}
+	pub fn pan(&mut self, mouse_delta: Vector2<f32>, elapsed: f32) {
+		let motion = Vector3::new(mouse_delta.x, mouse_delta.y, 0.0) * self.motion_speed * elapsed * 0.05;
+		self.translation = Matrix4::from_translation(motion) * self.translation;
+		self.camera = self.translation * self.look_at * Matrix4::from(self.rotation);
+		self.inv_camera = self.camera.invert().unwrap();
+	}
+	pub fn update_screen(&mut self, width: f32, height: f32) {
+		self.inv_screen[0] = 1.0 / width;
+		self.inv_screen[1] = 1.0 / height;
+	}
 	fn screen_to_arcball(p: Vector2<f32>) -> Quaternion<f32> {
 		let dist = cgmath::dot(p, p);
 		// If we're on/in the sphere return the point on it
