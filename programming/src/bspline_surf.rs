@@ -12,7 +12,7 @@ pub struct BSplineSurf<T> {
     degree_v: usize,
     knots_u: Vec<f32>,
     knots_v: Vec<f32>,
-    control_mesh: Vec<Vec<T>>,
+    pub control_mesh: Vec<Vec<T>>,
 }
 
 
@@ -20,6 +20,9 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
     /// Make a new tensor product B-spline surface. The surface will be the product
     /// of a degree.0, knots.0 and degree.1, knots.1 B-spline using the control mesh.
     pub fn new(degree: (usize, usize), knots: (Vec<f32>, Vec<f32>), control_mesh: Vec<Vec<T>>) -> BSplineSurf<T> {
+        if control_mesh.is_empty() {
+            panic!("Surface control mesh cannot be empty!");
+        }
         // TODO: Validate params
         println!("Got control mesh {:#?}", control_mesh);
         BSplineSurf { degree_u: degree.0, degree_v: degree.1,

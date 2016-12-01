@@ -19,6 +19,7 @@ mod display_curve3d;
 mod polyline;
 mod arcball_camera;
 mod bspline_surf;
+mod display_surf;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -45,6 +46,7 @@ use display_curve::DisplayCurve;
 use display_curve3d::DisplayCurve3D;
 use polyline::Polyline;
 use arcball_camera::ArcballCamera;
+use display_surf::DisplaySurf;
 
 /// Import a 2D BSpline curve from the file
 fn import<P: AsRef<Path>>(path: P) -> BSpline<Point> {
@@ -173,17 +175,6 @@ struct Args {
 }
 
 fn main() {
-    {
-        let surf = BSplineSurf::<f32>::new((1, 1), (vec![0.0, 0.0, 1.0, 1.0], vec![0.0, 0.0, 1.0, 1.0]),
-                                         vec![vec![0.0, 1.0], vec![0.0, 1.0]]);
-        let isoline_val = 0.25;
-        let isoline_u = surf.isoline_u(isoline_val);
-        println!("value of isoline_u at v = {}, at u = 0.5 = {}", isoline_val, isoline_u.point(0.5));
-
-        let isoline_v = surf.isoline_v(isoline_val);
-        println!("value of isoline_v at u = {}, at v = 0.5 = {}", isoline_val, isoline_v.point(0.5));
-        return;
-    }
     let args: Args = Docopt::new(USAGE).and_then(|d| d.decode()).unwrap_or_else(|e| e.exit());
     let target_gl_versions = glutin::GlRequest::GlThenGles {
         opengl_version: (3, 3),
@@ -201,6 +192,7 @@ fn main() {
 
     let mut curves = Vec::new();
     let mut curves3d = Vec::new();
+    let mut surfaces = Vec::new();
     if let Some(files) = args.arg_file {
         for f in files {
             let p = Path::new(&f);
@@ -213,6 +205,10 @@ fn main() {
             }
         }
     }
+    let surf = BSplineSurf::<Point>::new((1, 2), (vec![0.0, 0.0, 1.0, 1.0], vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]),
+                                 vec![vec![Point::new(-1.0, 1.0, 0.0), Point::new(1.0, -1.0, 0.0), Point::new(2.0, 0.5, 0.0)],
+                                      vec![Point::new(0.0, 0.0, -1.0), Point::new(1.0, 1.0, -1.0), Point::new(1.5, 0.5, -1.0)]]);
+    surfaces.push(DisplaySurf::new(surf, &display));
 
     println!("Got OpenGL: {:?}", display.get_opengl_version());
     println!("Got GLSL: {:?}", display.get_supported_glsl_version());
@@ -262,7 +258,7 @@ fn main() {
     let mut selected_curve: i32 = 0;
     let mut ui_interaction = false;
     let mut color_attenuation = true;
-    let mut render_3d = false;
+    let mut render_3d = true;
     'outer: loop {
         let fbscale = imgui.imgui.display_framebuffer_scale();
         for e in display.poll_events() {
@@ -370,6 +366,16 @@ fn main() {
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
                      attenuation);
         }
+        for (i, s) in surfaces.iter().enumerate() {
+            let sel_curve =
+                if selected_curve as usize >= curves.len() + curves3d.len() {
+                    selected_curve - curves.len() as i32 - curves3d.len() as i32
+                } else {
+                    selected_curve
+                };
+            s.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
+                     attenuation);
+        }
 
         let ui = imgui.render_ui(&display);
         ui.window(im_str!("Curve Control Panel"))
@@ -407,11 +413,24 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
+                for (i, c) in surfaces.iter_mut().enumerate() {
+                    let id = i + curves.len() + curves3d.len();
+                    ui.separator();
+                    imgui_support::push_id_int(id as i32);
+                    imgui_support::radio_button(im_str!("Select Surface"), &mut selected_curve, id as i32);
+                    c.draw_ui(&ui);
+                    if ui.small_button(im_str!("Remove Surface")) {
+                        removing = Some(id);
+                    }
+                    imgui_support::pop_id();
+                }
                 if let Some(i) = removing {
                     if selected_curve as usize >= i && selected_curve != 0 {
                         selected_curve -= 1;
                     }
-                    if i >= curves.len() {
+                    if i >= curves.len() + curves3d.len() {
+                        surfaces.remove(i - curves.len() - curves3d.len());
+                    } else if i >= curves.len() {
                         curves3d.remove(i - curves.len());
                     } else {
                         curves.remove(i);
