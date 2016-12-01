@@ -18,6 +18,7 @@ mod display_curve;
 mod display_curve3d;
 mod polyline;
 mod arcball_camera;
+mod bspline_surf;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -37,6 +38,7 @@ use regex::Regex;
 use imgui_support::ImGuiSupport;
 use bezier::Bezier;
 use bspline::BSpline;
+use bspline_surf::BSplineSurf;
 use point::Point;
 use camera2d::Camera2d;
 use display_curve::DisplayCurve;
@@ -171,6 +173,17 @@ struct Args {
 }
 
 fn main() {
+    {
+        let surf = BSplineSurf::<f32>::new((1, 1), (vec![0.0, 0.0, 1.0, 1.0], vec![0.0, 0.0, 1.0, 1.0]),
+                                         vec![vec![0.0, 1.0], vec![0.0, 1.0]]);
+        let isoline_val = 0.25;
+        let isoline_u = surf.isoline_u(isoline_val);
+        println!("value of isoline_u at v = {}, at u = 0.5 = {}", isoline_val, isoline_u.point(0.5));
+
+        let isoline_v = surf.isoline_v(isoline_val);
+        println!("value of isoline_v at u = {}, at v = 0.5 = {}", isoline_val, isoline_v.point(0.5));
+        return;
+    }
     let args: Args = Docopt::new(USAGE).and_then(|d| d.decode()).unwrap_or_else(|e| e.exit());
     let target_gl_versions = glutin::GlRequest::GlThenGles {
         opengl_version: (3, 3),

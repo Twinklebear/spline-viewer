@@ -22,3 +22,9 @@ eps/
 *.binary
 *.mp4
 imgui.ini
+programming/bezierdatafiles/
+programming/bspline2Ddata/
+programming/bspline3Ddispdata/
+programming/bsplinesurfaces/
+programming/bsplinesurfdata/
+
