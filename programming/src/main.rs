@@ -24,7 +24,7 @@ mod display_surf;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::prelude::*;
-use std::io::{BufReader, BufWriter};
+use std::io::{self, BufReader, BufWriter};
 use std::f32;
 use std::iter;
 use std::ffi::OsStr;
@@ -160,6 +160,83 @@ fn import3d<P: AsRef<Path>>(path: P) -> BSpline<Point> {
     BSpline::new(degree.expect("No degree specified"), points, knots)
 }
 
+/// Import a B-spline surface file
+fn import_surf<P: AsRef<Path>>(path: P) -> BSplineSurf<Point> {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) => panic!("Failed to open file: {}", e),
+    };
+    let reader = BufReader::new(file);
+    let lines_vec: Vec<_> = reader.lines().filter_map(|l| {
+        let x = l.unwrap();
+        if x.is_empty() || x.starts_with("#") {
+            None
+        } else {
+            Some(x)
+        }
+    }).collect();
+    let mut lines = lines_vec.iter();
+
+    // The first non-empty non-comment line has the degree_u degree_v separated by some spaces
+    let degrees: Vec<_> = lines.next().unwrap().split(' ').filter(|x| !x.is_empty()).collect();
+    let degree_u = degrees[0].trim().parse().unwrap();
+    let degree_v = degrees[1].trim().parse().unwrap();
+    println!("Reading B-spline surface with degrees ({}, {})", degree_u, degree_v);
+
+    let num_knots: Vec<_> = lines.next().unwrap().split(' ').filter(|x| !x.is_empty()).collect();
+    println!("num_knots = {:?}", num_knots);
+    let num_knots_u: usize = num_knots[0].trim().parse().unwrap();
+    let num_knots_v: usize = num_knots[1].trim().parse().unwrap();
+    println!("Reading B-spline surface with knot vector lengths ({}, {})", num_knots_u, num_knots_v);
+
+    // Find the u knot vector
+    let knots_u_line = lines.next().unwrap();
+    println!("knots_u_line = {}", knots_u_line);
+    let mut knots_u = Vec::new();
+    for k in knots_u_line.split(' ') {
+        match k.trim().parse() {
+            Ok(x) => knots_u.push(x),
+            Err(_) => {},
+        }
+    }
+    if num_knots_u != knots_u.len() {
+        panic!("Incorrect number of u knots read, expected {} got {}", num_knots_u, knots_u.len());
+    }
+
+    // Find the v knot vector
+    let knots_v_line = lines.next().unwrap();
+    println!("knots_v_line = {}", knots_v_line);
+    let mut knots_v = Vec::new();
+    for k in knots_v_line.split(' ') {
+        match k.trim().parse() {
+            Ok(x) => knots_v.push(x),
+            Err(_) => {},
+        }
+    }
+    if num_knots_v != knots_v.len() {
+        panic!("Incorrect number of v knots read, expected {} got {}", num_knots_v, knots_v.len());
+    }
+
+    let mesh_rows = knots_u.len() - degree_u - 1;
+    let mesh_cols = knots_v.len() - degree_v - 1;
+    println!("Expecting control mesh matrix of {}x{}", mesh_rows, mesh_cols);
+    let mut mesh = Vec::with_capacity(mesh_rows);
+    for i in 0..mesh_rows {
+        let mut row = Vec::with_capacity(mesh_cols);
+        for _ in 0..mesh_cols {
+            // Find the point
+            let coords: Vec<_> = lines.next().unwrap().split(',').collect();
+            let x = coords[0].trim().parse().unwrap();
+            let y = coords[1].trim().parse().unwrap();
+            let z = coords[2].trim().parse().unwrap();
+            row.push(Point::new(x, y, z));
+        }
+        println!("Read row {} = {:?}", i, row);
+        mesh.push(row);
+    }
+    BSplineSurf::new((degree_u, degree_v), (knots_u, knots_v), mesh)
+}
+
 const USAGE: &'static str = "
 Usage:
     bezier [<file>...]
@@ -196,8 +273,10 @@ fn main() {
     if let Some(files) = args.arg_file {
         for f in files {
             let p = Path::new(&f);
-            if p.extension() == Some(OsStr::new("dat")) {
-                curves.push(DisplayCurve::new(import(p), &display));;
+            if p.extension() == Some(OsStr::new("curve")) {
+                curves.push(DisplayCurve::new(import(p), &display));
+            } else if p.extension() == Some(OsStr::new("dat")) {
+                surfaces.push(DisplaySurf::new(import_surf(p), &display));
             } else if p.extension() == Some(OsStr::new("txt")) {
                 curves3d.push(DisplayCurve3D::new(import3d(p), &display));
             } else {
@@ -205,10 +284,12 @@ fn main() {
             }
         }
     }
+    /*
     let surf = BSplineSurf::<Point>::new((1, 2), (vec![0.0, 0.0, 1.0, 1.0], vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]),
                                  vec![vec![Point::new(-1.0, 1.0, 0.0), Point::new(1.0, -1.0, 0.0), Point::new(2.0, 0.5, 0.0)],
                                       vec![Point::new(0.0, 0.0, -1.0), Point::new(1.0, 1.0, -1.0), Point::new(1.5, 0.5, -1.0)]]);
     surfaces.push(DisplaySurf::new(surf, &display));
+    */
 
     println!("Got OpenGL: {:?}", display.get_opengl_version());
     println!("Got GLSL: {:?}", display.get_supported_glsl_version());
@@ -304,8 +385,10 @@ fn main() {
                     arcball_camera.update_screen(width as f32, height as f32);
                 },
                 Event::DroppedFile(ref p) => {
-                    if p.extension() == Some(OsStr::new("dat")) {
-                        curves.push(DisplayCurve::new(import(p), &display));;
+                    if p.extension() == Some(OsStr::new("curve")) {
+                        curves.push(DisplayCurve::new(import(p), &display));
+                    } else if p.extension() == Some(OsStr::new("dat")) {
+                        surfaces.push(DisplaySurf::new(import_surf(p), &display));
                     } else if p.extension() == Some(OsStr::new("txt")) {
                         curves3d.push(DisplayCurve3D::new(import3d(p), &display));
                     } else {
