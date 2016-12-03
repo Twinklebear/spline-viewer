@@ -10,8 +10,8 @@ use bspline::BSpline;
 pub struct BSplineSurf<T> {
     degree_u: usize,
     degree_v: usize,
-    knots_u: Vec<f32>,
-    knots_v: Vec<f32>,
+    pub knots_u: Vec<f32>,
+    pub knots_v: Vec<f32>,
     pub control_mesh: Vec<Vec<T>>,
 }
 
@@ -45,12 +45,49 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
     pub fn knot_domain_u(&self) -> (f32, f32) {
         (self.knots_u[self.degree_u], self.knots_u[self.knots_u.len() - 1 - self.degree_u])
     }
+    // TODO: need function to get iterator over knot DOMAIN
+    pub fn greville_abscissa_u(&self) -> Vec<f32> {
+        let mut abscissa = Vec::with_capacity(self.control_mesh.len());
+        let domain = self.knot_domain_u();
+        for i in 0..self.control_mesh.len() {
+            let g = self.knots_u.iter().enumerate().skip_while(|&(c, ref x)| c < i + 1)
+                .take_while(|&(c, ref x)| c <= i + self.degree_u)
+                .map(|(c, x)| x)
+                .fold(0.0, |acc, x| acc + *x) / self.degree_u as f32;
+            // TODO: Shouldn't this not be necessary? How can I get an abscissa outside
+            // the knot domain?
+            if g >= domain.0 && g <= domain.1 {
+                abscissa.push(g);
+            }
+        }
+        println!("greville_abscissa_u = {:?}", abscissa);
+        abscissa
+    }
+    /// Get a vector with the Greville abscissa for the u axis
     /// Get the min and max knot domain values for finding the `t` range to compute
     /// the curve over in the v axis. The curve is only defined over the inclusive range `[min, max]`,
     /// passing a `t` value outside of this range will result in an assert on debug builds
     /// and likely a crash on release builds.
     pub fn knot_domain_v(&self) -> (f32, f32) {
         (self.knots_v[self.degree_v], self.knots_v[self.knots_v.len() - 1 - self.degree_v])
+    }
+    /// Get a vector with the Greville abscissa for the v axis
+    pub fn greville_abscissa_v(&self) -> Vec<f32> {
+        let mut abscissa = Vec::with_capacity(self.control_mesh[0].len());
+        let domain = self.knot_domain_v();
+        for i in 0..self.control_mesh[0].len() {
+            let g = self.knots_v.iter().enumerate().skip_while(|&(c, ref x)| c < i + 1)
+                .take_while(|&(c, ref x)| c <= i + self.degree_v)
+                .map(|(c, x)| x)
+                .fold(0.0, |acc, x| acc + *x) / self.degree_v as f32;
+            // TODO: Shouldn't this not be necessary? How can I get an abscissa outside
+            // the knot domain?
+            if g >= domain.0 && g <= domain.1 {
+                abscissa.push(g);
+            }
+        }
+        println!("greville_abscissa_v = {:?}", abscissa);
+        abscissa
     }
     /// Compute an isoline along v for a fixed value of u
     pub fn isoline_v(&self, u: f32) -> BSpline<T> {
@@ -63,11 +100,9 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
                 column.push(self.control_mesh[i][j]);
             }
             // Build the column of points
-            println!("making spline using column {} = {:?}", j, column);
             let spline = BSpline::new(self.degree_u, column, self.knots_u.clone());
             isoline_ctrl_pts.push(spline.point(u));
         }
-        println!("Made isoline control polygon {:?}", isoline_ctrl_pts);
         BSpline::new(self.degree_v, isoline_ctrl_pts, self.knots_v.clone())
     }
     /// Compute an isoline along u for a fixed value of v
@@ -76,11 +111,9 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
         // points for the isoline.
         let mut isoline_ctrl_pts = Vec::with_capacity(self.control_mesh.len());
         for i in 0..self.control_mesh.len() {
-            println!("making spline using row {} = {:?}", i, self.control_mesh[i]);
             let spline = BSpline::new(self.degree_v, self.control_mesh[i].clone(), self.knots_v.clone());
             isoline_ctrl_pts.push(spline.point(v));
         }
-        println!("Made isoline control polygon {:?}", isoline_ctrl_pts);
         BSpline::new(self.degree_u, isoline_ctrl_pts, self.knots_u.clone())
     }
 }
