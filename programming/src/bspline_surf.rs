@@ -1,4 +1,6 @@
 use std::fmt::Debug;
+use std::iter;
+use std::slice;
 
 use bezier::Interpolate;
 use bspline::BSpline;
@@ -24,7 +26,6 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
             panic!("Surface control mesh cannot be empty!");
         }
         // TODO: Validate params
-        println!("Got control mesh {:#?}", control_mesh);
         BSplineSurf { degree_u: degree.0, degree_v: degree.1,
                       knots_u: knots.0, knots_v: knots.1,
                       control_mesh: control_mesh
@@ -45,7 +46,10 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
     pub fn knot_domain_u(&self) -> (f32, f32) {
         (self.knots_u[self.degree_u], self.knots_u[self.knots_u.len() - 1 - self.degree_u])
     }
-    // TODO: need function to get iterator over knot DOMAIN
+    // Get an iterator over the knots within the domain
+    pub fn knot_domain_u_iter(&self) -> iter::Take<iter::Skip<slice::Iter<f32>>> {
+        self.knots_u.iter().skip(self.degree_u).take(self.knots_u.len() - 2 * self.degree_u)
+    }
     pub fn greville_abscissa_u(&self) -> Vec<f32> {
         let mut abscissa = Vec::with_capacity(self.control_mesh.len());
         let domain = self.knot_domain_u();
@@ -60,7 +64,6 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
                 abscissa.push(g);
             }
         }
-        println!("greville_abscissa_u = {:?}", abscissa);
         abscissa
     }
     /// Get a vector with the Greville abscissa for the u axis
@@ -70,6 +73,9 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
     /// and likely a crash on release builds.
     pub fn knot_domain_v(&self) -> (f32, f32) {
         (self.knots_v[self.degree_v], self.knots_v[self.knots_v.len() - 1 - self.degree_v])
+    }
+    pub fn knot_domain_v_iter(&self) -> iter::Take<iter::Skip<slice::Iter<f32>>> {
+        self.knots_v.iter().skip(self.degree_v).take(self.knots_v.len() - 2 * self.degree_v)
     }
     /// Get a vector with the Greville abscissa for the v axis
     pub fn greville_abscissa_v(&self) -> Vec<f32> {
@@ -86,7 +92,6 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
                 abscissa.push(g);
             }
         }
-        println!("greville_abscissa_v = {:?}", abscissa);
         abscissa
     }
     /// Compute an isoline along v for a fixed value of u

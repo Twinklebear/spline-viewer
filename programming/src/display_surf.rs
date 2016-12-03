@@ -41,7 +41,7 @@ impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
 
         let t_range_u = surf.knot_domain_u();
         let t_range_v = surf.knot_domain_v();
-        println!("knot domain u = {:?}, knot domain v = {:?}", t_range_u, t_range_v);
+
         let isoline_start_steps_u = ((t_range_u.1 - t_range_u.0) / isoline_step_size) as usize;
         let isoline_start_steps_v = ((t_range_v.1 - t_range_v.0) / isoline_step_size) as usize;
         let steps_u = ((t_range_u.1 - t_range_u.0) / step_size) as usize;
@@ -82,7 +82,6 @@ impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
             .chain(t_vals_v.iter().map(|x| *x)).collect();
         isoline_v_t_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
         isoline_v_t_vals.dedup();
-        println!("isoline_v_t_vals = {:?}", isoline_v_t_vals);
 
         let mut greville_u_vbos = Vec::with_capacity(abscissa_u.len());
         let mut greville_v_vbos = Vec::with_capacity(abscissa_v.len());
@@ -108,7 +107,7 @@ impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
         let mut knot_u_vbos = Vec::with_capacity(surf.knots_u.len());
         let mut knot_v_vbos = Vec::with_capacity(surf.knots_v.len());
         // For each knot on u draw an isoline along v
-        for u in &surf.knots_u[..] {
+        for u in surf.knot_domain_u_iter() {
             let curve = surf.isoline_v(*u);
             let mut points = Vec::with_capacity(steps_v);
             for t in &isoline_v_t_vals[..] {
@@ -117,7 +116,7 @@ impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
             knot_u_vbos.push(VertexBuffer::new(display, &points[..]).unwrap());
         }
         // For each knot on v draw an isoline along u
-        for v in &surf.knots_v[..] {
+        for v in surf.knot_domain_v_iter() {
             let curve = surf.isoline_u(*v);
             let mut points = Vec::with_capacity(steps_u);
             for t in &isoline_u_t_vals[..] {

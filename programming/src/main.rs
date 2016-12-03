@@ -184,14 +184,12 @@ fn import_surf<P: AsRef<Path>>(path: P) -> BSplineSurf<Point> {
     println!("Reading B-spline surface with degrees ({}, {})", degree_u, degree_v);
 
     let num_knots: Vec<_> = lines.next().unwrap().split(' ').filter(|x| !x.is_empty()).collect();
-    println!("num_knots = {:?}", num_knots);
     let num_knots_u: usize = num_knots[0].trim().parse().unwrap();
     let num_knots_v: usize = num_knots[1].trim().parse().unwrap();
     println!("Reading B-spline surface with knot vector lengths ({}, {})", num_knots_u, num_knots_v);
 
     // Find the u knot vector
     let knots_u_line = lines.next().unwrap();
-    println!("knots_u_line = {}", knots_u_line);
     let mut knots_u = Vec::new();
     for k in knots_u_line.split(' ') {
         match k.trim().parse() {
@@ -205,7 +203,6 @@ fn import_surf<P: AsRef<Path>>(path: P) -> BSplineSurf<Point> {
 
     // Find the v knot vector
     let knots_v_line = lines.next().unwrap();
-    println!("knots_v_line = {}", knots_v_line);
     let mut knots_v = Vec::new();
     for k in knots_v_line.split(' ') {
         match k.trim().parse() {
@@ -221,7 +218,7 @@ fn import_surf<P: AsRef<Path>>(path: P) -> BSplineSurf<Point> {
     let mesh_cols = knots_v.len() - degree_v - 1;
     println!("Expecting control mesh matrix of {}x{}", mesh_rows, mesh_cols);
     let mut mesh = Vec::with_capacity(mesh_rows);
-    for i in 0..mesh_rows {
+    for _ in 0..mesh_rows {
         let mut row = Vec::with_capacity(mesh_cols);
         for _ in 0..mesh_cols {
             // Find the point
@@ -231,7 +228,6 @@ fn import_surf<P: AsRef<Path>>(path: P) -> BSplineSurf<Point> {
             let z = coords[2].trim().parse().unwrap();
             row.push(Point::new(x, y, z));
         }
-        println!("Read row {} = {:?}", i, row);
         mesh.push(row);
     }
     BSplineSurf::new((degree_u, degree_v), (knots_u, knots_v), mesh)
