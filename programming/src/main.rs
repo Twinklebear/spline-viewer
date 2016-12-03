@@ -20,6 +20,7 @@ mod polyline;
 mod arcball_camera;
 mod bspline_surf;
 mod display_surf;
+mod display_surf_interp;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -47,6 +48,7 @@ use display_curve3d::DisplayCurve3D;
 use polyline::Polyline;
 use arcball_camera::ArcballCamera;
 use display_surf::DisplaySurf;
+use display_surf_interp::DisplaySurfInterpolation;
 
 /// Import a 2D BSpline curve from the file
 fn import<P: AsRef<Path>>(path: P) -> BSpline<Point> {
@@ -233,6 +235,66 @@ fn import_surf<P: AsRef<Path>>(path: P) -> BSplineSurf<Point> {
     BSplineSurf::new((degree_u, degree_v), (knots_u, knots_v), mesh)
 }
 
+/// Import a B-spline nodal interpolation data file
+fn import_surf_interpolation<P: AsRef<Path>>(path: P) -> Vec<BSpline<Point>> {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) => panic!("Failed to open file: {}", e),
+    };
+    let reader = BufReader::new(file);
+    let lines_vec: Vec<_> = reader.lines().filter_map(|l| {
+        let x = l.unwrap();
+        if x.is_empty() || x.starts_with("#") {
+            None
+        } else {
+            Some(x)
+        }
+    }).collect();
+    let mut lines = lines_vec.iter();
+
+    // The first non-empty non-comment line has the degree_u degree_v separated by some spaces
+    let header: Vec<_> = lines.next().unwrap().split(' ').filter(|x| !x.is_empty()).collect();
+    let num_curves = header[0].trim().parse().unwrap();
+    let curve_degree = header[1].trim().parse().unwrap();
+    let num_control_points = header[2].trim().parse().unwrap();
+    println!("Reading B-spline interpolation data, num_curves = {}, curve_degree = {}, num_control_pts = {}",
+             num_curves, curve_degree, num_control_points);
+
+    let num_knots = num_control_points + curve_degree + 1;
+    println!("Expecting {} knots", num_knots);
+
+    // Find the u knot vector
+    let knots_line = lines.next().unwrap();
+    let mut knots = Vec::new();
+    for k in knots_line.split(' ') {
+        match k.trim().parse() {
+            Ok(x) => knots.push(x),
+            Err(_) => {},
+        }
+    }
+    if num_knots != knots.len() {
+        panic!("Incorrect number of knots read, expected {} got {}", num_knots, knots.len());
+    }
+
+    let mesh_rows = num_curves;
+    let mesh_cols = num_control_points;
+    println!("Expecting input mesh matrix of {}x{}", mesh_rows, mesh_cols);
+    let mut splines = Vec::with_capacity(mesh_rows);
+    for _ in 0..mesh_rows {
+        let mut row = Vec::with_capacity(mesh_cols);
+        for _ in 0..mesh_cols {
+            // Find the point
+            let coords: Vec<_> = lines.next().unwrap().split(',').collect();
+            let x = coords[0].trim().parse().unwrap();
+            let y = coords[1].trim().parse().unwrap();
+            let z = coords[2].trim().parse().unwrap();
+            row.push(Point::new(x, y, z));
+        }
+        splines.push(BSpline::new(curve_degree, row, knots.clone()));
+    }
+    splines
+}
+
 const USAGE: &'static str = "
 Usage:
     bezier [<file>...]
@@ -266,6 +328,7 @@ fn main() {
     let mut curves = Vec::new();
     let mut curves3d = Vec::new();
     let mut surfaces = Vec::new();
+    let mut surface_interpolations = Vec::new();
     if let Some(files) = args.arg_file {
         for f in files {
             let p = Path::new(&f);
@@ -273,6 +336,8 @@ fn main() {
                 curves.push(DisplayCurve::new(import(p), &display));
             } else if p.extension() == Some(OsStr::new("dat")) {
                 surfaces.push(DisplaySurf::new(import_surf(p), &display));
+            } else if p.extension() == Some(OsStr::new("sdat")) {
+                surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(p), &display));
             } else if p.extension() == Some(OsStr::new("txt")) {
                 curves3d.push(DisplayCurve3D::new(import3d(p), &display));
             } else {
@@ -280,12 +345,6 @@ fn main() {
             }
         }
     }
-    /*
-    let surf = BSplineSurf::<Point>::new((1, 2), (vec![0.0, 0.0, 1.0, 1.0], vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]),
-                                 vec![vec![Point::new(-1.0, 1.0, 0.0), Point::new(1.0, -1.0, 0.0), Point::new(2.0, 0.5, 0.0)],
-                                      vec![Point::new(0.0, 0.0, -1.0), Point::new(1.0, 1.0, -1.0), Point::new(1.5, 0.5, -1.0)]]);
-    surfaces.push(DisplaySurf::new(surf, &display));
-    */
 
     println!("Got OpenGL: {:?}", display.get_opengl_version());
     println!("Got GLSL: {:?}", display.get_supported_glsl_version());
@@ -385,6 +444,8 @@ fn main() {
                         curves.push(DisplayCurve::new(import(p), &display));
                     } else if p.extension() == Some(OsStr::new("dat")) {
                         surfaces.push(DisplaySurf::new(import_surf(p), &display));
+                    } else if p.extension() == Some(OsStr::new("sdat")) {
+                        surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(p), &display));
                     } else if p.extension() == Some(OsStr::new("txt")) {
                         curves3d.push(DisplayCurve3D::new(import3d(p), &display));
                     } else {
@@ -436,22 +497,17 @@ fn main() {
                      attenuation);
         }
         for (i, c) in curves3d.iter().enumerate() {
-            let sel_curve =
-                if selected_curve as usize >= curves.len() {
-                    selected_curve - curves.len() as i32
-                } else {
-                    selected_curve
-                };
+            let sel_curve = selected_curve - curves.len() as i32;
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
                      attenuation);
         }
         for (i, s) in surfaces.iter().enumerate() {
-            let sel_curve =
-                if selected_curve as usize >= curves.len() + curves3d.len() {
-                    selected_curve - curves.len() as i32 - curves3d.len() as i32
-                } else {
-                    selected_curve
-                };
+            let sel_curve = selected_curve - curves.len() as i32 - curves3d.len() as i32;
+            s.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
+                     attenuation);
+        }
+        for (i, s) in surface_interpolations.iter().enumerate() {
+            let sel_curve = selected_curve - curves.len() as i32 - curves3d.len() as i32 - surfaces.len() as i32;
             s.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
                      attenuation);
         }
@@ -503,11 +559,24 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
+                for (i, c) in surface_interpolations.iter_mut().enumerate() {
+                    let id = i + curves.len() + curves3d.len() + surfaces.len();
+                    ui.separator();
+                    imgui_support::push_id_int(id as i32);
+                    imgui_support::radio_button(im_str!("Select Surface"), &mut selected_curve, id as i32);
+                    c.draw_ui(&ui);
+                    if ui.small_button(im_str!("Remove Surface")) {
+                        removing = Some(id);
+                    }
+                    imgui_support::pop_id();
+                }
                 if let Some(i) = removing {
                     if selected_curve as usize >= i && selected_curve != 0 {
                         selected_curve -= 1;
                     }
-                    if i >= curves.len() + curves3d.len() {
+                    if i >= curves.len() + curves3d.len() + surfaces.len() {
+                        surface_interpolations.remove(i - curves.len() - curves3d.len() - surfaces.len());
+                    } else if i >= curves.len() + curves3d.len() {
                         surfaces.remove(i - curves.len() - curves3d.len());
                     } else if i >= curves.len() {
                         curves3d.remove(i - curves.len());
