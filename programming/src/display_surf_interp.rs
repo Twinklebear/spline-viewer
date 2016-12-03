@@ -2,13 +2,17 @@
 /// a specific BSpline surface in the scene.
 
 use std::f32;
+use std::iter::FromIterator;
 
 use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
 use imgui::Ui;
+use rulinalg::matrix::{Matrix, BaseMatrix};
+use rulinalg::vector::Vector;
 
 use bspline::BSpline;
+use bspline_basis::BSplineBasis;
 use point::Point;
 
 pub struct DisplaySurfInterpolation<'a, F: 'a + Facade> {
@@ -42,6 +46,24 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         }
         let control_points_vbo = VertexBuffer::new(display, &control_points[..]).unwrap();
 
+        // Setup the bases for u and v so we can build the matrices
+        let basis_u = BSplineBasis::new(curves[0].degree(), curves[0].knots().map(|x| *x).collect());
+        let abscissa_u = basis_u.greville_abscissa();
+        let basis_v = BSplineBasis::clamped_uniform(curves[0].degree(), curves.len());
+        let abscissa_v = basis_v.greville_abscissa();
+        println!("basis_u abscissa = {:?}\nbasis_v abscissa = {:?}", abscissa_u, abscissa_v);
+
+        let f = Matrix::from_fn(curves[0].control_points.len(), abscissa_u.len(),
+                                |i, j| basis_u.eval(abscissa_u[i], j));
+        let g = Matrix::from_fn(curves.len(), abscissa_v.len(), |i, j| basis_v.eval(abscissa_v[i], j));
+        let x_pos: Vec<_> = control_points.iter().map(|x| x.pos[0]).collect();
+        let h = Matrix::new(curves[0].control_points.len(), curves.len(), x_pos);
+                                  
+        println!("F = {:#?}\nG = {:#?}\nH = {:#?}", f, g, h);
+        let f_inv = f.inverse().expect("F is not invertible!?");
+        let g_t_inv = g.transpose().inverse().expect("G is not invertible!?");
+        let c = f_inv * h * g_t_inv;
+
         DisplaySurfInterpolation { display: display,
                       //surf: surf,
                       input_curves_vbo: input_curves_vbo,
@@ -72,7 +94,7 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         //surf.render(target, program, draw_params, proj_view, selected, attenuation);
     }
     pub fn draw_ui(&mut self, ui: &Ui) {
-        ui.text(im_str!("3D Surface"));
+        ui.text(im_str!("3D Surface Interpolation"));
         ui.checkbox(im_str!("Draw Input Curves"), &mut self.draw_input_curves);
         ui.color_edit3(im_str!("Input Color"), &mut self.curve_color).build();
         //surf.draw_ui(ui);

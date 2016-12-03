@@ -8,6 +8,7 @@ extern crate docopt;
 extern crate rustc_serialize;
 extern crate regex;
 extern crate num_traits;
+extern crate rulinalg;
 
 mod imgui_support;
 mod bezier;
@@ -21,11 +22,12 @@ mod arcball_camera;
 mod bspline_surf;
 mod display_surf;
 mod display_surf_interp;
+mod bspline_basis;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::prelude::*;
-use std::io::{self, BufReader, BufWriter};
+use std::io::{BufReader, BufWriter};
 use std::f32;
 use std::iter;
 use std::ffi::OsStr;
@@ -275,6 +277,9 @@ fn import_surf_interpolation<P: AsRef<Path>>(path: P) -> Vec<BSpline<Point>> {
     if num_knots != knots.len() {
         panic!("Incorrect number of knots read, expected {} got {}", num_knots, knots.len());
     }
+
+    // TODO: Ask Elaine about wtf is up with the knots in the files. They seem almost arbitray
+    // and are often the wrong count.
 
     let mesh_rows = num_curves;
     let mesh_cols = num_control_points;
