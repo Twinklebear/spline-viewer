@@ -3,6 +3,7 @@
 
 use std::f32;
 use std::iter::FromIterator;
+use std::ops::Index;
 
 use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
@@ -12,15 +13,20 @@ use rulinalg::matrix::{Matrix, BaseMatrix};
 use rulinalg::vector::Vector;
 
 use bspline::BSpline;
+use bspline_surf::BSplineSurf;
 use bspline_basis::BSplineBasis;
+use display_surf::DisplaySurf;
 use point::Point;
 
 pub struct DisplaySurfInterpolation<'a, F: 'a + Facade> {
     display: &'a F,
-    //surf: DisplaySurf<'a, F>,
+    surf: DisplaySurf<'a, F>,
     // The input curves
     input_curves_vbo: Vec<VertexBuffer<Point>>,
+    // The input control points
+    input_points_vbo: VertexBuffer<Point>,
     draw_input_curves: bool,
+    draw_input_points: bool,
     curve_color: [f32; 3],
 }
 
@@ -51,23 +57,58 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         let abscissa_u = basis_u.greville_abscissa();
         let basis_v = BSplineBasis::clamped_uniform(curves[0].degree(), curves.len());
         let abscissa_v = basis_v.greville_abscissa();
-        println!("basis_u abscissa = {:?}\nbasis_v abscissa = {:?}", abscissa_u, abscissa_v);
+        println!("basis_u abscissa = {:?}", abscissa_u);
+        println!("basis_v abscissa = {:?}", abscissa_v);
 
-        let f = Matrix::from_fn(curves[0].control_points.len(), abscissa_u.len(),
-                                |i, j| basis_u.eval(abscissa_u[i], j));
-        let g = Matrix::from_fn(curves.len(), abscissa_v.len(), |i, j| basis_v.eval(abscissa_v[i], j));
+        let f = Matrix::from_fn(curves.len(), abscissa_v.len(),
+                                |i, j| basis_v.eval(abscissa_v[i], j));
         let x_pos: Vec<_> = control_points.iter().map(|x| x.pos[0]).collect();
-        let h = Matrix::new(curves[0].control_points.len(), curves.len(), x_pos);
-                                  
-        println!("F = {:#?}\nG = {:#?}\nH = {:#?}", f, g, h);
-        let f_inv = f.inverse().expect("F is not invertible!?");
-        let g_t_inv = g.transpose().inverse().expect("G is not invertible!?");
-        let c = f_inv * h * g_t_inv;
+        let y_pos: Vec<_> = control_points.iter().map(|x| x.pos[1]).collect();
+        let z_pos: Vec<_> = control_points.iter().map(|x| x.pos[2]).collect();
+        // Are these dimensions right?
+        let r_mats = vec![Matrix::new(curves.len(), curves[0].control_points.len(), x_pos),
+                     Matrix::new(curves.len(), curves[0].control_points.len(), y_pos),
+                     Matrix::new(curves.len(), curves[0].control_points.len(), z_pos)];
+        let mut result_mats = Vec::with_capacity(r_mats.len());
+
+        println!("F = {:#?}\nR = {:#?}", f, r_mats);
+        //let mut solved_pts = Vec::new();
+        // Solve each column
+        let mut x = 0;
+        for r in &r_mats[..] {
+            let mut res_mat = Matrix::zeros(curves.len(), curves[0].control_points.len());
+            for j in 0..curves[0].control_points.len() {
+                let rhs = Vector::new((0..curves.len()).map(|i| r[[i, j]]).collect::<Vec<f32>>());
+                println!("rhs for coord {}, j = {}, rhs = {:?}", x, j, rhs);
+                let result = f.solve(rhs).expect("System could not be solved!?");
+                println!("solution for axis {}, column {} = {:?}", x, j, result);
+                for i in 0..curves.len() {
+                    res_mat[[i, j]] = result[i];
+                }
+            }
+            println!("res_mat for coord {} = {:#?}", x, res_mat);
+            result_mats.push(res_mat);
+            x = x + 1;
+        }
+        let mut surf_mesh = Vec::new();
+        for i in 0..curves.len() {
+            let mut mesh_row = Vec::new();
+            for j in 0..curves[0].control_points.len() {
+                let p = Point::new(result_mats[0][[i, j]], result_mats[1][[i, j]], result_mats[2][[i, j]]);
+                mesh_row.push(p);
+            }
+            surf_mesh.push(mesh_row);
+        }
+        println!("basis_u knots = {:?}, basis_v knots = {:?}", basis_u.knots, basis_v.knots);
+        let surf = BSplineSurf::new((basis_v.degree(), basis_u.degree()),
+                                    (basis_v.knots, basis_u.knots), surf_mesh);
 
         DisplaySurfInterpolation { display: display,
-                      //surf: surf,
+                      surf: DisplaySurf::new(surf, display),
                       input_curves_vbo: input_curves_vbo,
+                      input_points_vbo: control_points_vbo,
                       draw_input_curves: true,
+                      draw_input_points: true,
                       curve_color: [0.1, 0.8, 0.1],
         }
     }
@@ -91,13 +132,18 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
                             &program, &uniforms, &draw_params).unwrap();
             }
         }
-        //surf.render(target, program, draw_params, proj_view, selected, attenuation);
+        if self.draw_input_points {
+            target.draw(&self.input_points_vbo, &NoIndices(PrimitiveType::Points),
+                        &program, &uniforms, &draw_params).unwrap();
+        }
+        self.surf.render(target, program, draw_params, proj_view, selected, attenuation);
     }
     pub fn draw_ui(&mut self, ui: &Ui) {
         ui.text(im_str!("3D Surface Interpolation"));
         ui.checkbox(im_str!("Draw Input Curves"), &mut self.draw_input_curves);
+        ui.checkbox(im_str!("Draw Input Control Points"), &mut self.draw_input_points);
         ui.color_edit3(im_str!("Input Color"), &mut self.curve_color).build();
-        //surf.draw_ui(ui);
+        self.surf.draw_ui(ui);
     }
 }
 

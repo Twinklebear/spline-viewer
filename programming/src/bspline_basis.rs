@@ -10,20 +10,34 @@ pub struct BSplineBasis {
     /// Degree of the polynomial that we use to make the curve segments
     degree: usize,
     /// The knot vector
-    knots: Vec<f32>,
+    pub knots: Vec<f32>,
+    modified_knot: usize,
 }
 
 impl BSplineBasis {
     pub fn new(degree: usize, mut knots: Vec<f32>) -> BSplineBasis {
         knots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        BSplineBasis { degree: degree, knots: knots }
+        println!("knots = {:?}", knots);
+        let mut modified_knot = 0;
+        for i in 0..knots.len() - 1 {
+            if knots[i] < knots[i + 1] {
+                modified_knot = i;
+            }
+        }
+        println!("modified knot is = {}", modified_knot);
+        BSplineBasis { degree: degree, knots: knots, modified_knot: modified_knot }
     }
     /// Make a new basis with a generated uniform clamped knot vector
     pub fn clamped_uniform(degree: usize, num_points: usize) -> BSplineBasis {
-        BSplineBasis {
-            degree: degree,
-            knots: BSplineBasis::generate_knot_vector(true, num_points + degree + 1, degree),
+        let knots = BSplineBasis::generate_knot_vector(true, num_points + degree + 1, degree);
+        let mut modified_knot = 0;
+        for i in 0..knots.len() - 1 {
+            if knots[i] < knots[i + 1] {
+                modified_knot = i;
+            }
         }
+        println!("modified knot is = {}", modified_knot);
+        BSplineBasis { degree: degree, knots: knots, modified_knot: modified_knot }
     }
     /// Get an iterator over the knots.
     pub fn knots(&self) -> slice::Iter<f32> {
@@ -61,26 +75,35 @@ impl BSplineBasis {
     /// TODO: Make this fucking work.
     fn evaluate_basis(&self, t: f32, i: usize, k: usize) -> f32 {
         if k == 0 {
-            if t >= self.knots[i] && t < self.knots[i + 1] {
-                1.0
+            if t >= self.knots[i] {
+                // Modified open end condition
+                if i == self.modified_knot && t <= self.knots[i + 1] {
+                    println!("modified open end cond");
+                    1.0
+                } else if t < self.knots[i + 1] {
+                    1.0
+                } else {
+                    0.0
+                }
             } else {
                 0.0
             }
         } else if t >= self.knots[i] && t <= self.knots[i + k + 1] {
             let mut a = (t - self.knots[i]) / (self.knots[i + k] - self.knots[i]);
             let mut b = (self.knots[i + k + 1] - t) / (self.knots[i + k + 1] - self.knots[i + 1]);
-            // Why do I get all these fucking nans and infs
             if !a.is_finite() {
-                println!("a was not finite ({}, {})", i, k);
+                println!("a = {} was not finite ({}, {})", a, i, k);
                 a = 0.0;
             }
             if !b.is_finite() {
-                println!("b was not finite ({}, {})", i, k);
+                println!("b = {} was not finite ({}, {})", b, i, k);
                 b = 0.0;
             }
             let c = self.evaluate_basis(t, i, k - 1);
             let d = self.evaluate_basis(t, i + 1, k - 1);
             println!("at {}, {} a = {} and b = {}", i, k, a, b);
+            println!("a = ({} - {}) / ({} - {})", t, self.knots[i], self.knots[i + k], self.knots[i]);
+            println!("b = ({} - {}) / ({} - {})", self.knots[i + k + 1], t, self.knots[i + k + 1], self.knots[i + 1]);
             println!("c = {}, d = {}", c, d);
             a * c + b * d
         } else {
