@@ -55,11 +55,12 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         // Setup the bases for u and v so we can build the matrices
         let basis_u = BSplineBasis::new(curves[0].degree(), curves[0].knots().map(|x| *x).collect());
         let abscissa_u = basis_u.greville_abscissa();
-        let basis_v = BSplineBasis::clamped_uniform(curves[0].degree(), curves.len());
+        let basis_v = BSplineBasis::clamped_uniform(1, curves.len());
         let abscissa_v = basis_v.greville_abscissa();
         println!("basis_u abscissa = {:?}", abscissa_u);
         println!("basis_v abscissa = {:?}", abscissa_v);
 
+        // This is actually the N matrix in the 12/5 notes.
         let f = Matrix::from_fn(curves.len(), abscissa_v.len(),
                                 |i, j| basis_v.eval(abscissa_v[i], j));
         let x_pos: Vec<_> = control_points.iter().map(|x| x.pos[0]).collect();
