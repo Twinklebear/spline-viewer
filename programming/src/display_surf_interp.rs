@@ -55,6 +55,7 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         // Setup the bases for u and v so we can build the matrices
         let basis_u = BSplineBasis::new(curves[0].degree(), curves[0].knots().map(|x| *x).collect());
         let abscissa_u = basis_u.greville_abscissa();
+        // Is the result right for cubic?
         let basis_v = BSplineBasis::clamped_uniform(1, curves.len());
         let abscissa_v = basis_v.greville_abscissa();
         println!("basis_u abscissa = {:?}", abscissa_u);
