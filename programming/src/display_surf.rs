@@ -274,6 +274,9 @@ impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
         ui.color_edit3(im_str!("Knot Color"), &mut self.knot_color).build();
         ui.color_edit3(im_str!("Control Color"), &mut self.control_color).build();
     }
+    pub fn get_surf(&self) -> &BSplineSurf<Point> {
+        &self.surf
+    }
 }
 
 

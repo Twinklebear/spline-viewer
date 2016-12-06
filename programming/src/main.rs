@@ -278,9 +278,6 @@ fn import_surf_interpolation<P: AsRef<Path>>(path: P) -> Vec<BSpline<Point>> {
         panic!("Incorrect number of knots read, expected {} got {}", num_knots, knots.len());
     }
 
-    // TODO: Ask Elaine about wtf is up with the knots in the files. They seem almost arbitray
-    // and are often the wrong count.
-
     let mesh_rows = num_curves;
     let mesh_cols = num_control_points;
     println!("Expecting input mesh matrix of {}x{}", mesh_rows, mesh_cols);
@@ -298,6 +295,38 @@ fn import_surf_interpolation<P: AsRef<Path>>(path: P) -> Vec<BSpline<Point>> {
         splines.push(BSpline::new(curve_degree, row, knots.clone()));
     }
     splines
+}
+
+/// Save a B-spline surface out to Elaine's file format
+fn export_surf<P: AsRef<Path>>(path: P, surf: &BSplineSurf<Point>) {
+    let file = match File::create(path) {
+        Ok(f) => f,
+        Err(e) => panic!("Failed to create file: {}", e),
+    };
+    let mut writer = BufWriter::new(file);
+    write!(&mut writer, "# Surface exported from Will Usher's CS6670-CAGD PA3 Program\n").unwrap();
+
+    // Write the degree in u and v
+    write!(&mut writer, "{} {}\n", surf.degree_u(), surf.degree_v()).unwrap();
+    // Write the number of knots in u and v
+    write!(&mut writer, "{} {}\n", surf.knots_u.len(), surf.knots_v.len()).unwrap();
+
+    // Write the knots along u and v
+    write!(&mut writer, "knots =").unwrap();
+    for u in &surf.knots_u[..] {
+        write!(&mut writer, " {}", u).unwrap();
+    }
+    write!(&mut writer, "\nknots =").unwrap();
+    for v in &surf.knots_v[..] {
+        write!(&mut writer, " {}", v).unwrap();
+    }
+    write!(&mut writer, "\n# Control mesh\n").unwrap();
+    // Write the control mesh
+    for row in &surf.control_mesh[..] {
+        for p in &row[..] {
+            write!(&mut writer, "{}, {}, {}\n", p.pos[0], p.pos[1], p.pos[2]).unwrap();
+        }
+    }
 }
 
 const USAGE: &'static str = "
@@ -400,6 +429,7 @@ fn main() {
     let mut ui_interaction = false;
     let mut color_attenuation = true;
     let mut render_3d = true;
+    let mut file_output_name: String = iter::repeat('\0').take(64).collect();
     'outer: loop {
         let fbscale = imgui.imgui.display_framebuffer_scale();
         for e in display.poll_events() {
@@ -530,6 +560,28 @@ fn main() {
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
                 ui.checkbox(im_str!("Fade Unselected Curves"), &mut color_attenuation);
                 ui.checkbox(im_str!("Render 3D"), &mut render_3d);
+                ui.input_text(im_str!("Output File"), &mut file_output_name).build();
+                if ui.small_button(im_str!("Save Selected Surface")) {
+                    if !file_output_name.starts_with('\0') {
+                        let sel_curve = selected_curve - curves.len() as i32 - curves3d.len() as i32 - surfaces.len() as i32;
+                        if sel_curve < 0 {
+                            ui.open_popup(im_str!("selection_invalid"));
+                        } else {
+                            let mut path = PathBuf::from("./");
+                            path.push(file_output_name.trim_matches('\0'));
+                            path.set_extension("dat");
+                            export_surf(path, surface_interpolations[sel_curve as usize].get_surf());
+                            ui.open_popup(im_str!("curves_saved"));
+                            file_output_name = iter::repeat('\0').take(64).collect();
+                        }
+                    } else {
+                        ui.open_popup(im_str!("need_file_name"));
+                    }
+                }
+                ui.popup(im_str!("curves_saved"), || ui.text(im_str!("Curves saved")));
+                ui.popup(im_str!("selection_invalid"),
+                         || ui.text(im_str!("Selected object to export is not an interpolation surface")));
+                ui.popup(im_str!("need_file_name"), || ui.text(im_str!("A file name is required")));
 
                 let mut removing = None;
                 for (i, c) in curves.iter_mut().enumerate() {

@@ -106,6 +106,9 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         }
         self.surf.draw_ui(ui);
     }
+    pub fn get_surf(&self) -> &BSplineSurf<Point> {
+        self.surf.get_surf()
+    }
 }
 
 fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSplineSurf<Point> {
