@@ -22,6 +22,7 @@ pub struct DisplaySurfInterpolation<'a, F: 'a + Facade> {
     display: &'a F,
     curves: Vec<BSpline<Point>>,
     surf: DisplaySurf<'a, F>,
+    interpolation_degree: usize,
     // The input curves
     input_curves_vbo: Vec<VertexBuffer<Point>>,
     // The input control points
@@ -45,7 +46,6 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
                 let t = step_size * s as f32 + t_range.0;
                 points.push(c.point(t));
             }
-            println!("--------");
             input_curves_vbo.push(VertexBuffer::new(display, &points[..]).unwrap());
 
             for pt in &c.control_points[..] {
@@ -58,6 +58,7 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         DisplaySurfInterpolation { display: display,
                       curves: curves,
                       surf: DisplaySurf::new(surf, display),
+                      interpolation_degree: 1,
                       input_curves_vbo: input_curves_vbo,
                       input_points_vbo: control_points_vbo,
                       draw_input_curves: true,
@@ -96,6 +97,13 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         ui.checkbox(im_str!("Draw Input Curves"), &mut self.draw_input_curves);
         ui.checkbox(im_str!("Draw Input Control Points"), &mut self.draw_input_points);
         ui.color_edit3(im_str!("Input Color"), &mut self.curve_color).build();
+        let max_degree = (self.curves.len() - 1) as i32;
+        let mut current_degree = self.interpolation_degree as i32;
+        if ui.slider_int(im_str!("Interp. Degree"), &mut current_degree, 1, max_degree).build() {
+            self.interpolation_degree = current_degree as usize;
+            self.surf = DisplaySurf::new(compute_nodal_interpolation(&self.curves[..], self.interpolation_degree),
+                                         self.display);
+        }
         self.surf.draw_ui(ui);
     }
 }
@@ -111,7 +119,7 @@ fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSpl
     let basis_u = BSplineBasis::new(curves[0].degree(), curves[0].knots().map(|x| *x).collect());
     let abscissa_u = basis_u.greville_abscissa();
     // Is the result right for cubic?
-    let basis_v = BSplineBasis::clamped_uniform(1, curves.len());
+    let basis_v = BSplineBasis::clamped_uniform(degree, curves.len());
     let abscissa_v = basis_v.greville_abscissa();
 
     // This is actually the N matrix in the 12/5 notes.
