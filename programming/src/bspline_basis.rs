@@ -17,14 +17,12 @@ pub struct BSplineBasis {
 impl BSplineBasis {
     pub fn new(degree: usize, mut knots: Vec<f32>) -> BSplineBasis {
         knots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        println!("knots = {:?}", knots);
         let mut modified_knot = 0;
         for i in 0..knots.len() - 1 {
             if knots[i] < knots[i + 1] {
                 modified_knot = i;
             }
         }
-        println!("modified knot is = {}", modified_knot);
         BSplineBasis { degree: degree, knots: knots, modified_knot: modified_knot }
     }
     /// Make a new basis with a generated uniform clamped knot vector
@@ -36,7 +34,6 @@ impl BSplineBasis {
                 modified_knot = i;
             }
         }
-        println!("modified knot is = {}", modified_knot);
         BSplineBasis { degree: degree, knots: knots, modified_knot: modified_knot }
     }
     /// Get an iterator over the knots.
@@ -69,7 +66,6 @@ impl BSplineBasis {
     }
     pub fn eval(&self, t: f32, fcn: usize) -> f32 {
         debug_assert!(t >= self.knot_domain().0 && t <= self.knot_domain().1);
-        println!("knots = {:?}", self.knots);
         self.evaluate_basis(t, fcn, self.degree)
     }
     /// TODO: Make this fucking work.
@@ -78,7 +74,6 @@ impl BSplineBasis {
             if t >= self.knots[i] {
                 // Modified open end condition
                 if i == self.modified_knot && t <= self.knots[i + 1] {
-                    println!("modified open end cond");
                     1.0
                 } else if t < self.knots[i + 1] {
                     1.0
@@ -92,19 +87,13 @@ impl BSplineBasis {
             let mut a = (t - self.knots[i]) / (self.knots[i + k] - self.knots[i]);
             let mut b = (self.knots[i + k + 1] - t) / (self.knots[i + k + 1] - self.knots[i + 1]);
             if !a.is_finite() {
-                println!("a = {} was not finite ({}, {})", a, i, k);
                 a = 0.0;
             }
             if !b.is_finite() {
-                println!("b = {} was not finite ({}, {})", b, i, k);
                 b = 0.0;
             }
             let c = self.evaluate_basis(t, i, k - 1);
             let d = self.evaluate_basis(t, i + 1, k - 1);
-            println!("at {}, {} a = {} and b = {}", i, k, a, b);
-            println!("a = ({} - {}) / ({} - {})", t, self.knots[i], self.knots[i + k], self.knots[i]);
-            println!("b = ({} - {}) / ({} - {})", self.knots[i + k + 1], t, self.knots[i + k + 1], self.knots[i + 1]);
-            println!("c = {}, d = {}", c, d);
             a * c + b * d
         } else {
             0.0

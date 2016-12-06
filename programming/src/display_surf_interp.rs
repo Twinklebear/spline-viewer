@@ -20,6 +20,7 @@ use point::Point;
 
 pub struct DisplaySurfInterpolation<'a, F: 'a + Facade> {
     display: &'a F,
+    curves: Vec<BSpline<Point>>,
     surf: DisplaySurf<'a, F>,
     // The input curves
     input_curves_vbo: Vec<VertexBuffer<Point>>,
@@ -35,7 +36,7 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         let mut control_points = Vec::new();
         let mut input_curves_vbo = Vec::with_capacity(curves.len());
         let step_size = 0.01;
-        for c in curves.iter() {
+        for (i, c) in curves.iter().enumerate() {
             let t_range = c.knot_domain();
             let steps = ((t_range.1 - t_range.0) / step_size) as usize;
             let mut points = Vec::with_capacity(steps);
@@ -44,6 +45,7 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
                 let t = step_size * s as f32 + t_range.0;
                 points.push(c.point(t));
             }
+            println!("--------");
             input_curves_vbo.push(VertexBuffer::new(display, &points[..]).unwrap());
 
             for pt in &c.control_points[..] {
@@ -51,61 +53,10 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
             }
         }
         let control_points_vbo = VertexBuffer::new(display, &control_points[..]).unwrap();
-
-        // Setup the bases for u and v so we can build the matrices
-        let basis_u = BSplineBasis::new(curves[0].degree(), curves[0].knots().map(|x| *x).collect());
-        let abscissa_u = basis_u.greville_abscissa();
-        // Is the result right for cubic?
-        let basis_v = BSplineBasis::clamped_uniform(1, curves.len());
-        let abscissa_v = basis_v.greville_abscissa();
-        println!("basis_u abscissa = {:?}", abscissa_u);
-        println!("basis_v abscissa = {:?}", abscissa_v);
-
-        // This is actually the N matrix in the 12/5 notes.
-        let f = Matrix::from_fn(curves.len(), abscissa_v.len(),
-                                |i, j| basis_v.eval(abscissa_v[i], j));
-        let x_pos: Vec<_> = control_points.iter().map(|x| x.pos[0]).collect();
-        let y_pos: Vec<_> = control_points.iter().map(|x| x.pos[1]).collect();
-        let z_pos: Vec<_> = control_points.iter().map(|x| x.pos[2]).collect();
-        // Are these dimensions right?
-        let r_mats = vec![Matrix::new(curves.len(), curves[0].control_points.len(), x_pos),
-                     Matrix::new(curves.len(), curves[0].control_points.len(), y_pos),
-                     Matrix::new(curves.len(), curves[0].control_points.len(), z_pos)];
-        let mut result_mats = Vec::with_capacity(r_mats.len());
-
-        println!("F = {:#?}\nR = {:#?}", f, r_mats);
-        //let mut solved_pts = Vec::new();
-        // Solve each column
-        let mut x = 0;
-        for r in &r_mats[..] {
-            let mut res_mat = Matrix::zeros(curves.len(), curves[0].control_points.len());
-            for j in 0..curves[0].control_points.len() {
-                let rhs = Vector::new((0..curves.len()).map(|i| r[[i, j]]).collect::<Vec<f32>>());
-                println!("rhs for coord {}, j = {}, rhs = {:?}", x, j, rhs);
-                let result = f.solve(rhs).expect("System could not be solved!?");
-                println!("solution for axis {}, column {} = {:?}", x, j, result);
-                for i in 0..curves.len() {
-                    res_mat[[i, j]] = result[i];
-                }
-            }
-            println!("res_mat for coord {} = {:#?}", x, res_mat);
-            result_mats.push(res_mat);
-            x = x + 1;
-        }
-        let mut surf_mesh = Vec::new();
-        for i in 0..curves.len() {
-            let mut mesh_row = Vec::new();
-            for j in 0..curves[0].control_points.len() {
-                let p = Point::new(result_mats[0][[i, j]], result_mats[1][[i, j]], result_mats[2][[i, j]]);
-                mesh_row.push(p);
-            }
-            surf_mesh.push(mesh_row);
-        }
-        println!("basis_u knots = {:?}, basis_v knots = {:?}", basis_u.knots, basis_v.knots);
-        let surf = BSplineSurf::new((basis_v.degree(), basis_u.degree()),
-                                    (basis_v.knots, basis_u.knots), surf_mesh);
+        let surf = compute_nodal_interpolation(&curves[..], 1);
 
         DisplaySurfInterpolation { display: display,
+                      curves: curves,
                       surf: DisplaySurf::new(surf, display),
                       input_curves_vbo: input_curves_vbo,
                       input_points_vbo: control_points_vbo,
@@ -149,5 +100,55 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
     }
 }
 
+fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSplineSurf<Point> {
+    let mut control_points = Vec::new();
+    for c in curves.iter() {
+        for pt in &c.control_points[..] {
+            control_points.push(*pt);
+        }
+    }
+    // Setup the bases for u and v so we can build the matrices
+    let basis_u = BSplineBasis::new(curves[0].degree(), curves[0].knots().map(|x| *x).collect());
+    let abscissa_u = basis_u.greville_abscissa();
+    // Is the result right for cubic?
+    let basis_v = BSplineBasis::clamped_uniform(1, curves.len());
+    let abscissa_v = basis_v.greville_abscissa();
 
+    // This is actually the N matrix in the 12/5 notes.
+    let f = Matrix::from_fn(curves.len(), abscissa_v.len(),
+                            |i, j| basis_v.eval(abscissa_v[i], j));
+    let x_pos: Vec<_> = control_points.iter().map(|x| x.pos[0]).collect();
+    let y_pos: Vec<_> = control_points.iter().map(|x| x.pos[1]).collect();
+    let z_pos: Vec<_> = control_points.iter().map(|x| x.pos[2]).collect();
+    // Are these dimensions right?
+    let r_mats = vec![Matrix::new(curves.len(), curves[0].control_points.len(), x_pos),
+                 Matrix::new(curves.len(), curves[0].control_points.len(), y_pos),
+                 Matrix::new(curves.len(), curves[0].control_points.len(), z_pos)];
+    let mut result_mats = Vec::with_capacity(r_mats.len());
+
+    // Solve each column
+    let mut x = 0;
+    for r in &r_mats[..] {
+        let mut res_mat = Matrix::zeros(curves.len(), curves[0].control_points.len());
+        for j in 0..curves[0].control_points.len() {
+            let rhs = Vector::new((0..curves.len()).map(|i| r[[i, j]]).collect::<Vec<f32>>());
+            let result = f.solve(rhs).expect("System could not be solved!?");
+            for i in 0..curves.len() {
+                res_mat[[i, j]] = result[i];
+            }
+        }
+        result_mats.push(res_mat);
+        x = x + 1;
+    }
+    let mut surf_mesh = Vec::new();
+    for i in 0..curves.len() {
+        let mut mesh_row = Vec::new();
+        for j in 0..curves[0].control_points.len() {
+            let p = Point::new(result_mats[0][[i, j]], result_mats[1][[i, j]], result_mats[2][[i, j]]);
+            mesh_row.push(p);
+        }
+        surf_mesh.push(mesh_row);
+    }
+    BSplineSurf::new((basis_v.degree(), basis_u.degree()), (basis_v.knots, basis_u.knots), surf_mesh)
+}
 
