@@ -17,18 +17,22 @@ pub struct DisplayCurve<'a, F: 'a + Facade> {
     pub curve: BSpline<Point>,
     curve_points_vbo:  VertexBuffer<Point>,
     control_points_vbo: VertexBuffer<Point>,
+    break_points_vbo: VertexBuffer<Point>,
     draw_curve: bool,
     draw_control_poly: bool,
     draw_control_points: bool,
+    draw_break_points: bool,
     moving_point: Option<usize>,
     curve_color: [f32; 3],
     control_color: [f32; 3],
+    break_point_color: [f32; 3],
 }
 
 impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
     pub fn new(curve: BSpline<Point>, display: &'a F) -> DisplayCurve<'a, F> {
         let control_points_vbo;
         let curve_points_vbo;
+        let break_points_vbo;
         if !curve.control_points.is_empty() {
             let step_size = 0.01;
             let t_range = curve.knot_domain();
@@ -41,20 +45,26 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
                 points.push(curve.point(t));
             }
             curve_points_vbo = VertexBuffer::new(display, &points[..]).unwrap();
+            let break_points: Vec<_> = curve.knot_domain_iter().map(|b| curve.point(*b)).collect();
+            break_points_vbo = VertexBuffer::new(display, &break_points[..]).unwrap();
         } else {
             control_points_vbo = VertexBuffer::empty(display, 10).unwrap();
             curve_points_vbo = VertexBuffer::empty(display, 10).unwrap();
+            break_points_vbo = VertexBuffer::empty(display, 10).unwrap();
         }
         DisplayCurve { display: display,
                        curve: curve,
                        curve_points_vbo: curve_points_vbo,
                        control_points_vbo: control_points_vbo,
+                       break_points_vbo: break_points_vbo,
                        draw_curve: true,
                        draw_control_poly: true,
                        draw_control_points: true,
+                       draw_break_points: true,
                        moving_point: None,
                        curve_color: [0.8, 0.8, 0.1],
                        control_color: [0.8, 0.8, 0.8],
+                       break_point_color: [0.1, 0.8, 0.8],
         }
     }
     pub fn handle_click(&mut self, pos: Point, shift_down: bool, zoom_factor: f32) {
@@ -88,6 +98,8 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
                 points.push(self.curve.point(t));
             }
             self.curve_points_vbo = VertexBuffer::new(self.display, &points[..]).unwrap();
+            let break_points: Vec<_> = self.curve.knot_domain_iter().map(|b| self.curve.point(*b)).collect();
+            self.break_points_vbo = VertexBuffer::new(self.display, &break_points[..]).unwrap();
         }
     }
     /// Release any held point that was being dragged
@@ -96,14 +108,16 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
     }
     pub fn render<S: Surface>(&self, target: &mut S, program: &Program, draw_params: &DrawParameters,
                   proj_view: &[[f32; 4]; 4], selected: bool, attenuation: f32) {
-        let (curve_color, control_color) =
+        let (curve_color, control_color, break_color) =
             if selected {
-                (self.curve_color, self.control_color)
+                (self.curve_color, self.control_color, self.break_point_color)
             } else {
                 ([attenuation * self.curve_color[0], attenuation * self.curve_color[1],
                   attenuation * self.curve_color[2]],
                  [attenuation * self.control_color[0], attenuation * self.control_color[1],
-                  attenuation * self.control_color[2]])
+                  attenuation * self.control_color[2]],
+                 [attenuation * self.break_point_color[0], attenuation * self.break_point_color[1],
+                  attenuation * self.break_point_color[2]])
             };
         if !self.curve.control_points.is_empty() {
             let uniforms = uniform! {
@@ -129,6 +143,15 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
                 target.draw(&self.control_points_vbo, &NoIndices(PrimitiveType::Points),
                             &program, &uniforms, &draw_params).unwrap();
             }
+            if self.draw_break_points {
+                let uniforms = uniform! {
+                    proj_view: *proj_view,
+                    pcolor: break_color,
+                };
+                // Draw the control points
+                target.draw(&self.break_points_vbo, &NoIndices(PrimitiveType::Points),
+                            &program, &uniforms, &draw_params).unwrap();
+            }
         }
     }
     pub fn draw_ui(&mut self, ui: &Ui) {
@@ -137,6 +160,7 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
         ui.checkbox(im_str!("Draw Curve"), &mut self.draw_curve);
         ui.checkbox(im_str!("Draw Control Polygon"), &mut self.draw_control_poly);
         ui.checkbox(im_str!("Draw Control Points"), &mut self.draw_control_points);
+        ui.checkbox(im_str!("Draw Break Points"), &mut self.draw_break_points);
         let mut curve_changed = false;
         // I use the open curve term b/c Elaine will be interacting with it and she
         // calls clamped curves open.
@@ -166,9 +190,12 @@ impl<'a, F: 'a + Facade> DisplayCurve<'a, F> {
                 points.push(self.curve.point(t));
             }
             self.curve_points_vbo = VertexBuffer::new(self.display, &points[..]).unwrap();
+            let break_points: Vec<_> = self.curve.knot_domain_iter().map(|b| self.curve.point(*b)).collect();
+            self.break_points_vbo = VertexBuffer::new(self.display, &break_points[..]).unwrap();
         }
         ui.color_edit3(im_str!("Curve Color"), &mut self.curve_color).build();
         ui.color_edit3(im_str!("Control Color"), &mut self.control_color).build();
+        ui.color_edit3(im_str!("Break Point Color"), &mut self.break_point_color).build();
     }
 }
 

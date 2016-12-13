@@ -46,7 +46,7 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
     pub fn knot_domain_u(&self) -> (f32, f32) {
         (self.knots_u[self.degree_u], self.knots_u[self.knots_u.len() - 1 - self.degree_u])
     }
-    // Get an iterator over the knots within the domain
+    /// Get an iterator over the knots within the domain
     pub fn knot_domain_u_iter(&self) -> iter::Take<iter::Skip<slice::Iter<f32>>> {
         self.knots_u.iter().skip(self.degree_u).take(self.knots_u.len() - 2 * self.degree_u)
     }

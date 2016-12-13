@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::slice::Iter;
 use std::f32;
+use std::iter;
+use std::slice;
 
 use bezier::{Interpolate, ProjectToSegment};
 
@@ -79,6 +81,10 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
     /// and likely a crash on release builds.
     pub fn knot_domain(&self) -> (f32, f32) {
         (self.knots[self.degree], self.knots[self.knots.len() - 1 - self.degree])
+    }
+    /// Get an iterator over the knots within the domain
+    pub fn knot_domain_iter(&self) -> iter::Take<iter::Skip<slice::Iter<f32>>> {
+        self.knots.iter().skip(self.degree).take(self.knots.len() - 2 * self.degree)
     }
     /// Get the max degree of curve that this set of control points can support
     pub fn max_possible_degree(&self) -> usize {
