@@ -127,7 +127,7 @@ fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSpl
 
     // This is actually the N matrix in the 12/5 notes.
     let f = Matrix::from_fn(curves.len(), abscissa_v.len(),
-                            |i, j| basis_v.eval(abscissa_v[i], j));
+                            |i, j| basis_v.eval(abscissa_v[j], i));
     let x_pos: Vec<_> = control_points.iter().map(|x| x.pos[0]).collect();
     let y_pos: Vec<_> = control_points.iter().map(|x| x.pos[1]).collect();
     let z_pos: Vec<_> = control_points.iter().map(|x| x.pos[2]).collect();
