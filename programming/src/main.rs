@@ -58,62 +58,24 @@ use display_surf::DisplaySurf;
 use display_surf_interp::DisplaySurfInterpolation;
 
 /// Import a 2D BSpline curve from the file
-fn import<P: AsRef<Path>>(path: P) -> BSpline<Point> {
-    let file = match File::open(path) {
-        Ok(f) => f,
-        Err(e) => panic!("Failed to open file: {}", e),
-    };
-    let reader = BufReader::new(file);
-    let mut points = Vec::new();
+fn import_bspline2d(json: &serde_json::Value) -> BSpline<Point> {
+    let degree = json["degree"].as_u64().expect("A curve degree must be specified") as usize;
+    let points = json["points"].as_array().expect("A list of points must be specified").iter()
+        .map(|p| Point::new(p["x"].as_f64().expect("Invalid x coord") as f32,
+                            p["y"].as_f64().expect("Invalid y coord") as f32, 0.0))
+        .collect();
     let mut knots = Vec::new();
-    let mut degree: Option<usize> = None;
-    let mut num_points = 0;
-    let mut pts_read = 0;
-    let mut read_knots = false;
-    for line in reader.lines() {
-        let l = line.unwrap();
-        // Skip empty lines and comments
-        if l.is_empty() || l.starts_with("#") {
-            continue;
-        }
-        if degree.is_none() {
-            degree = Some(l.trim().parse().unwrap());
-            println!("Curve has degree {}", degree.expect("no degree set"));
-            continue;
-        }
-        if num_points == 0 {
-            num_points = l.trim().parse().unwrap();
-            println!("Expecting {} points for control polygon", num_points);
-            continue;
-        }
-        if pts_read < num_points {
-            let coords: Vec<_> = l.split(',').collect();
-            assert!(coords.len() >= 2);
-            let x = coords[0].trim().parse().unwrap();
-            let y = coords[1].trim().parse().unwrap();
-            points.push(Point::new(x, y, 0.0));
-            pts_read += 1;
-            continue;
-        }
-        if read_knots {
-            let coords: Vec<_> = l.split(',').collect();
-            for k in coords {
-                knots.push(k.trim().parse().unwrap());
-            }
-            break;
-        }
-        let knots_provided: usize = l.trim().parse().unwrap();
-        println!("knots provided? {}", knots_provided == 1);
-        if knots_provided == 0 {
-            break;
-        }
-        read_knots = true;
+    if let Some(k) = json["knots"].as_array() {
+        knots = k.iter().map(|x| x.as_f64().expect("Invalid knot value") as f32).collect();
     }
-    BSpline::new(degree.expect("No degree specified"), points, knots)
+    println!("degree = {:?}", degree);
+    println!("points = {:?}", points);
+    println!("knots = {:?}", knots);
+    BSpline::new(degree, points, knots)
 }
 
 /// Import a of 3D BSpline curves from the file
-fn import3d<P: AsRef<Path>>(path: P) -> BSpline<Point> {
+fn import_bspline3d<P: AsRef<Path>>(path: P) -> BSpline<Point> {
     let file = match File::open(path) {
         Ok(f) => f,
         Err(e) => panic!("Failed to open file: {}", e),
@@ -302,38 +264,6 @@ fn import_surf_interpolation<P: AsRef<Path>>(path: P) -> Vec<BSpline<Point>> {
     splines
 }
 
-/// Save a B-spline surface out to Elaine's file format
-fn export_surf<P: AsRef<Path>>(path: P, surf: &BSplineSurf<Point>) {
-    let file = match File::create(path) {
-        Ok(f) => f,
-        Err(e) => panic!("Failed to create file: {}", e),
-    };
-    let mut writer = BufWriter::new(file);
-    write!(&mut writer, "# Surface exported from Will Usher's CS6670-CAGD PA3 Program\n").unwrap();
-
-    // Write the degree in u and v
-    write!(&mut writer, "{} {}\n", surf.degree_u(), surf.degree_v()).unwrap();
-    // Write the number of knots in u and v
-    write!(&mut writer, "{} {}\n", surf.knots_u.len(), surf.knots_v.len()).unwrap();
-
-    // Write the knots along u and v
-    write!(&mut writer, "knots =").unwrap();
-    for u in &surf.knots_u[..] {
-        write!(&mut writer, " {}", u).unwrap();
-    }
-    write!(&mut writer, "\nknots =").unwrap();
-    for v in &surf.knots_v[..] {
-        write!(&mut writer, " {}", v).unwrap();
-    }
-    write!(&mut writer, "\n# Control mesh\n").unwrap();
-    // Write the control mesh
-    for row in &surf.control_mesh[..] {
-        for p in &row[..] {
-            write!(&mut writer, "{}, {}, {}\n", p.pos[0], p.pos[1], p.pos[2]).unwrap();
-        }
-    }
-}
-
 const USAGE: &'static str = "
 Usage:
     bezier [<file>...]
@@ -360,13 +290,21 @@ fn main() {
         .build_glium().unwrap();
 
     let mut curves = Vec::new();
-    let mut curves3d = Vec::new();
-    let mut surfaces = Vec::new();
-    let mut surface_interpolations = Vec::new();
+    //let mut curves3d = Vec::new();
+    //let mut surfaces = Vec::new();
+    //let mut surface_interpolations = Vec::new();
     for f in args.get_vec("<file>") {
-        let p = Path::new(&f);
-        if p.extension() == Some(OsStr::new("curve")) {
-            curves.push(DisplayCurve::new(import(p), &display));
+        let file = match File::open(&f) {
+            Ok(f) => f,
+            Err(e) => panic!("Failed to open file: {}", e),
+        };
+        let reader = BufReader::new(file);
+        let json: serde_json::Value  = serde_json::from_reader(reader).expect("Failed to read input file");
+        let ty = json["type"].as_str().expect("A curve type must be specified");
+        if ty == "bspline2d" {
+            curves.push(DisplayCurve::new(import_bspline2d(&json), &display));
+        }
+            /*
         } else if p.extension() == Some(OsStr::new("dat")) {
             surfaces.push(DisplaySurf::new(import_surf(p), &display));
         } else if p.extension() == Some(OsStr::new("sdat")) {
@@ -376,6 +314,7 @@ fn main() {
         } else {
             println!("Unrecognized file type {}", f);
         }
+        */
     }
 
     println!("Got OpenGL: {:?}", display.get_opengl_version());
@@ -473,6 +412,7 @@ fn main() {
                     arcball_camera.update_screen(width as f32, height as f32);
                 },
                 Event::DroppedFile(ref p) => {
+                    /*
                     if p.extension() == Some(OsStr::new("curve")) {
                         curves.push(DisplayCurve::new(import(p), &display));
                     } else if p.extension() == Some(OsStr::new("dat")) {
@@ -484,6 +424,7 @@ fn main() {
                     } else {
                         println!("Unrecognized file type {}", p.display());
                     }
+                    */
                 },
                 _ => {}
             }
@@ -515,7 +456,7 @@ fn main() {
         ui_interaction = imgui_support::is_mouse_hovering_any_window() || imgui_support::is_any_item_active();
 
         let mut target = display.draw();
-        target.clear_color(0.1, 0.1, 0.1, 1.0);
+        target.clear_color(0.05, 0.05, 0.05, 1.0);
 
         let proj_view: [[f32; 4]; 4] =
             if !render_3d {
@@ -529,6 +470,7 @@ fn main() {
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == selected_curve,
                      attenuation);
         }
+        /*
         for (i, c) in curves3d.iter().enumerate() {
             let sel_curve = selected_curve - curves.len() as i32;
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
@@ -544,6 +486,7 @@ fn main() {
             s.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
                      attenuation);
         }
+        */
 
         let ui = imgui.render_ui(&display);
         ui.window(im_str!("Curve Control Panel"))
@@ -558,28 +501,6 @@ fn main() {
                 ui.text(im_str!("GLSL Version: {}.{}", glsl_version.1, glsl_version.2));
                 ui.checkbox(im_str!("Fade Unselected Curves"), &mut color_attenuation);
                 ui.checkbox(im_str!("Render 3D"), &mut render_3d);
-                ui.input_text(im_str!("Output File"), &mut file_output_name).build();
-                if ui.small_button(im_str!("Save Selected Surface")) {
-                    if !file_output_name.starts_with('\0') {
-                        let sel_curve = selected_curve - curves.len() as i32 - curves3d.len() as i32 - surfaces.len() as i32;
-                        if sel_curve < 0 {
-                            ui.open_popup(im_str!("selection_invalid"));
-                        } else {
-                            let mut path = PathBuf::from("./");
-                            path.push(file_output_name.trim_matches('\0'));
-                            path.set_extension("dat");
-                            export_surf(path, surface_interpolations[sel_curve as usize].get_surf());
-                            ui.open_popup(im_str!("curves_saved"));
-                            file_output_name = iter::repeat('\0').take(64).collect();
-                        }
-                    } else {
-                        ui.open_popup(im_str!("need_file_name"));
-                    }
-                }
-                ui.popup(im_str!("curves_saved"), || ui.text(im_str!("Curves saved")));
-                ui.popup(im_str!("selection_invalid"),
-                         || ui.text(im_str!("Selected object to export is not an interpolation surface")));
-                ui.popup(im_str!("need_file_name"), || ui.text(im_str!("A file name is required")));
 
                 let mut removing = None;
                 for (i, c) in curves.iter_mut().enumerate() {
@@ -592,6 +513,7 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
+                /*
                 for (i, c) in curves3d.iter_mut().enumerate() {
                     let id = i + curves.len();
                     ui.separator();
@@ -625,10 +547,12 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
+                */
                 if let Some(i) = removing {
                     if selected_curve as usize >= i && selected_curve != 0 {
                         selected_curve -= 1;
                     }
+                    /*
                     if i >= curves.len() + curves3d.len() + surfaces.len() {
                         surface_interpolations.remove(i - curves.len() - curves3d.len() - surfaces.len());
                     } else if i >= curves.len() + curves3d.len() {
@@ -638,6 +562,7 @@ fn main() {
                     } else {
                         curves.remove(i);
                     }
+                    */
                 }
                 if ui.small_button(im_str!("Add Curve")) {
                     curves.push(DisplayCurve::new(BSpline::empty(), &display));
