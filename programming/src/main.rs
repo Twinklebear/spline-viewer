@@ -3,12 +3,16 @@ extern crate glium;
 #[macro_use]
 extern crate imgui;
 extern crate imgui_sys;
+extern crate imgui_glium_renderer;
 extern crate cgmath;
 extern crate docopt;
-extern crate rustc_serialize;
 extern crate regex;
 extern crate num_traits;
 extern crate rulinalg;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 
 mod imgui_support;
 mod bezier;
@@ -38,6 +42,7 @@ use glium::backend::glutin_backend::GlutinFacade;
 use cgmath::{SquareMatrix, Transform, Vector2, Matrix4};
 use docopt::Docopt;
 use regex::Regex;
+use imgui_glium_renderer::Renderer;
 
 use imgui_support::ImGuiSupport;
 use bezier::Bezier;
@@ -338,13 +343,8 @@ Options:
     -h, --help      Show this message.
 ";
 
-#[derive(RustcDecodable)]
-struct Args {
-    arg_file: Option<Vec<String>>,
-}
-
 fn main() {
-    let args: Args = Docopt::new(USAGE).and_then(|d| d.decode()).unwrap_or_else(|e| e.exit());
+    let args = Docopt::new(USAGE).and_then(|d| d.parse()).unwrap_or_else(|e| e.exit());
     let target_gl_versions = glutin::GlRequest::GlThenGles {
         opengl_version: (3, 3),
         opengles_version: (3, 2),
@@ -363,20 +363,18 @@ fn main() {
     let mut curves3d = Vec::new();
     let mut surfaces = Vec::new();
     let mut surface_interpolations = Vec::new();
-    if let Some(files) = args.arg_file {
-        for f in files {
-            let p = Path::new(&f);
-            if p.extension() == Some(OsStr::new("curve")) {
-                curves.push(DisplayCurve::new(import(p), &display));
-            } else if p.extension() == Some(OsStr::new("dat")) {
-                surfaces.push(DisplaySurf::new(import_surf(p), &display));
-            } else if p.extension() == Some(OsStr::new("sdat")) {
-                surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(p), &display));
-            } else if p.extension() == Some(OsStr::new("txt")) {
-                curves3d.push(DisplayCurve3D::new(import3d(p), &display));
-            } else {
-                println!("Unrecognized file type {}", f);
-            }
+    for f in args.get_vec("<file>") {
+        let p = Path::new(&f);
+        if p.extension() == Some(OsStr::new("curve")) {
+            curves.push(DisplayCurve::new(import(p), &display));
+        } else if p.extension() == Some(OsStr::new("dat")) {
+            surfaces.push(DisplaySurf::new(import_surf(p), &display));
+        } else if p.extension() == Some(OsStr::new("sdat")) {
+            surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(p), &display));
+        } else if p.extension() == Some(OsStr::new("txt")) {
+            curves3d.push(DisplayCurve3D::new(import3d(p), &display));
+        } else {
+            println!("Unrecognized file type {}", f);
         }
     }
 
@@ -384,7 +382,7 @@ fn main() {
     println!("Got GLSL: {:?}", display.get_supported_glsl_version());
 
     let mut imgui = ImGuiSupport::init();
-    let mut imgui_renderer = imgui::glium_renderer::Renderer::init(&mut imgui.imgui, &display).unwrap();
+    let mut imgui_renderer = Renderer::init(&mut imgui.imgui, &display).unwrap();
 
     let mut camera_2d = Camera2d::new();
     let mut arcball_camera = {

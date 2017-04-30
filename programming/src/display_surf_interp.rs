@@ -143,7 +143,7 @@ fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSpl
         let mut res_mat = Matrix::zeros(curves.len(), curves[0].control_points.len());
         for j in 0..curves[0].control_points.len() {
             let rhs = Vector::new((0..curves.len()).map(|i| r[[i, j]]).collect::<Vec<f32>>());
-            let result = f.solve(rhs).expect("System could not be solved!?");
+            let result = f.clone().solve(rhs).expect("System could not be solved!?");
             for i in 0..curves.len() {
                 res_mat[[i, j]] = result[i];
             }
