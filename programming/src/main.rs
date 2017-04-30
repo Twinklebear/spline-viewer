@@ -58,11 +58,12 @@ use display_surf::DisplaySurf;
 use display_surf_interp::DisplaySurfInterpolation;
 
 /// Import a 2D BSpline curve from the file
-fn import_bspline2d(json: &serde_json::Value) -> BSpline<Point> {
+fn import_bspline(json: &serde_json::Value) -> BSpline<Point> {
     let degree = json["degree"].as_u64().expect("A curve degree must be specified") as usize;
     let points = json["points"].as_array().expect("A list of points must be specified").iter()
         .map(|p| Point::new(p["x"].as_f64().expect("Invalid x coord") as f32,
-                            p["y"].as_f64().expect("Invalid y coord") as f32, 0.0))
+                            p["y"].as_f64().expect("Invalid y coord") as f32,
+                            p["z"].as_f64().unwrap_or(0.0) as f32))
         .collect();
     let mut knots = Vec::new();
     if let Some(k) = json["knots"].as_array() {
@@ -72,63 +73,6 @@ fn import_bspline2d(json: &serde_json::Value) -> BSpline<Point> {
     println!("points = {:?}", points);
     println!("knots = {:?}", knots);
     BSpline::new(degree, points, knots)
-}
-
-/// Import a of 3D BSpline curves from the file
-fn import_bspline3d<P: AsRef<Path>>(path: P) -> BSpline<Point> {
-    let file = match File::open(path) {
-        Ok(f) => f,
-        Err(e) => panic!("Failed to open file: {}", e),
-    };
-    let reader = BufReader::new(file);
-    let mut points = Vec::new();
-    let mut knots = Vec::new();
-    let mut degree: Option<usize> = None;
-    let mut num_points = 0;
-    let mut pts_read = 0;
-    let mut read_knots = false;
-    for line in reader.lines() {
-        let l = line.unwrap();
-        // Skip empty lines and comments
-        if l.is_empty() || l.starts_with("#") {
-            continue;
-        }
-        if degree.is_none() {
-            let header: Vec<_> = l.split(' ').collect();
-            degree = Some(header[1].trim().parse().unwrap());
-            println!("Curve has degree {}", degree.expect("no degree set"));
-            continue;
-        }
-        if num_points == 0 {
-            num_points = l.trim().parse().unwrap();
-            println!("Expecting {} points for control polygon", num_points);
-            continue;
-        }
-        if pts_read < num_points {
-            let coords: Vec<_> = l.split(',').collect();
-            assert!(coords.len() >= 2);
-            let x = coords[0].trim().parse().unwrap();
-            let y = coords[1].trim().parse().unwrap();
-            let z = coords[2].trim().parse().unwrap();
-            points.push(Point::new(x, y, z));
-            pts_read += 1;
-            continue;
-        }
-        if read_knots {
-            let coords: Vec<_> = l.split(',').collect();
-            for k in coords {
-                knots.push(k.trim().parse().unwrap());
-            }
-            break;
-        }
-        let knots_provided: usize = l.trim().parse().unwrap();
-        println!("knots provided? {}", knots_provided == 1);
-        if knots_provided == 0 {
-            break;
-        }
-        read_knots = true;
-    }
-    BSpline::new(degree.expect("No degree specified"), points, knots)
 }
 
 /// Import a B-spline surface file
@@ -290,7 +234,7 @@ fn main() {
         .build_glium().unwrap();
 
     let mut curves = Vec::new();
-    //let mut curves3d = Vec::new();
+    let mut curves3d = Vec::new();
     //let mut surfaces = Vec::new();
     //let mut surface_interpolations = Vec::new();
     for f in args.get_vec("<file>") {
@@ -302,15 +246,15 @@ fn main() {
         let json: serde_json::Value  = serde_json::from_reader(reader).expect("Failed to read input file");
         let ty = json["type"].as_str().expect("A curve type must be specified");
         if ty == "bspline2d" {
-            curves.push(DisplayCurve::new(import_bspline2d(&json), &display));
+            curves.push(DisplayCurve::new(import_bspline(&json), &display));
+        } else if ty == "bspline3d" {
+            curves3d.push(DisplayCurve3D::new(import_bspline(&json), &display));
         }
             /*
         } else if p.extension() == Some(OsStr::new("dat")) {
             surfaces.push(DisplaySurf::new(import_surf(p), &display));
         } else if p.extension() == Some(OsStr::new("sdat")) {
             surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(p), &display));
-        } else if p.extension() == Some(OsStr::new("txt")) {
-            curves3d.push(DisplayCurve3D::new(import3d(p), &display));
         } else {
             println!("Unrecognized file type {}", f);
         }
@@ -470,12 +414,12 @@ fn main() {
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == selected_curve,
                      attenuation);
         }
-        /*
         for (i, c) in curves3d.iter().enumerate() {
             let sel_curve = selected_curve - curves.len() as i32;
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
                      attenuation);
         }
+        /*
         for (i, s) in surfaces.iter().enumerate() {
             let sel_curve = selected_curve - curves.len() as i32 - curves3d.len() as i32;
             s.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
@@ -513,7 +457,6 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
-                /*
                 for (i, c) in curves3d.iter_mut().enumerate() {
                     let id = i + curves.len();
                     ui.separator();
@@ -525,6 +468,7 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
+                /*
                 for (i, c) in surfaces.iter_mut().enumerate() {
                     let id = i + curves.len() + curves3d.len();
                     ui.separator();
