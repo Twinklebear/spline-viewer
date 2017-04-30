@@ -63,8 +63,7 @@ fn import_bspline(json: &serde_json::Value) -> BSpline<Point> {
     let points = json["points"].as_array().expect("A list of points must be specified").iter()
         .map(|p| Point::new(p["x"].as_f64().expect("Invalid x coord") as f32,
                             p["y"].as_f64().expect("Invalid y coord") as f32,
-                            p["z"].as_f64().unwrap_or(0.0) as f32))
-        .collect();
+                            p["z"].as_f64().unwrap_or(0.0) as f32)).collect();
     let mut knots = Vec::new();
     if let Some(k) = json["knots"].as_array() {
         knots = k.iter().map(|x| x.as_f64().expect("Invalid knot value") as f32).collect();
@@ -76,74 +75,25 @@ fn import_bspline(json: &serde_json::Value) -> BSpline<Point> {
 }
 
 /// Import a B-spline surface file
-fn import_surf<P: AsRef<Path>>(path: P) -> BSplineSurf<Point> {
-    let file = match File::open(path) {
-        Ok(f) => f,
-        Err(e) => panic!("Failed to open file: {}", e),
-    };
-    let reader = BufReader::new(file);
-    let lines_vec: Vec<_> = reader.lines().filter_map(|l| {
-        let x = l.unwrap();
-        if x.is_empty() || x.starts_with("#") {
-            None
-        } else {
-            Some(x)
-        }
-    }).collect();
-    let mut lines = lines_vec.iter();
+fn import_surf(json: &serde_json::Value) -> BSplineSurf<Point> {
+    let u_data = json["u"].as_object().expect("Surface u component is required");
+    let v_data = json["v"].as_object().expect("Surface v component is required");
 
-    // The first non-empty non-comment line has the degree_u degree_v separated by some spaces
-    let degrees: Vec<_> = lines.next().unwrap().split(' ').filter(|x| !x.is_empty()).collect();
-    let degree_u = degrees[0].trim().parse().unwrap();
-    let degree_v = degrees[1].trim().parse().unwrap();
-    println!("Reading B-spline surface with degrees ({}, {})", degree_u, degree_v);
+    let degree_u = u_data["degree"].as_u64().expect("Surface u degree is required") as usize;
+    let degree_v = v_data["degree"].as_u64().expect("Surface v degree is required") as usize;
 
-    let num_knots: Vec<_> = lines.next().unwrap().split(' ').filter(|x| !x.is_empty()).collect();
-    let num_knots_u: usize = num_knots[0].trim().parse().unwrap();
-    let num_knots_v: usize = num_knots[1].trim().parse().unwrap();
-    println!("Reading B-spline surface with knot vector lengths ({}, {})", num_knots_u, num_knots_v);
+    let knots_u = u_data["knots"].as_array().expect("Surface u knots are required").iter()
+        .map(|x| x.as_f64().expect("Invalid knot value") as f32).collect();
+    let knots_v = v_data["knots"].as_array().expect("Surface v knots are required").iter()
+        .map(|x| x.as_f64().expect("Invalid knot value") as f32).collect();
 
-    // Find the u knot vector
-    let knots_u_line = lines.next().unwrap();
-    let mut knots_u = Vec::new();
-    for k in knots_u_line.split(' ') {
-        match k.trim().parse() {
-            Ok(x) => knots_u.push(x),
-            Err(_) => {},
-        }
-    }
-    if num_knots_u != knots_u.len() {
-        panic!("Incorrect number of u knots read, expected {} got {}", num_knots_u, knots_u.len());
-    }
-
-    // Find the v knot vector
-    let knots_v_line = lines.next().unwrap();
-    let mut knots_v = Vec::new();
-    for k in knots_v_line.split(' ') {
-        match k.trim().parse() {
-            Ok(x) => knots_v.push(x),
-            Err(_) => {},
-        }
-    }
-    if num_knots_v != knots_v.len() {
-        panic!("Incorrect number of v knots read, expected {} got {}", num_knots_v, knots_v.len());
-    }
-
-    let mesh_rows = knots_u.len() - degree_u - 1;
-    let mesh_cols = knots_v.len() - degree_v - 1;
-    println!("Expecting control mesh matrix of {}x{}", mesh_rows, mesh_cols);
-    let mut mesh = Vec::with_capacity(mesh_rows);
-    for _ in 0..mesh_rows {
-        let mut row = Vec::with_capacity(mesh_cols);
-        for _ in 0..mesh_cols {
-            // Find the point
-            let coords: Vec<_> = lines.next().unwrap().split(',').collect();
-            let x = coords[0].trim().parse().unwrap();
-            let y = coords[1].trim().parse().unwrap();
-            let z = coords[2].trim().parse().unwrap();
-            row.push(Point::new(x, y, z));
-        }
-        mesh.push(row);
+    let mut mesh = Vec::new();
+    for r in json["mesh"].as_array().expect("Surface control mesh is required") {
+        let points = r.as_array().expect("A list of points must be specified").iter()
+            .map(|p| Point::new(p["x"].as_f64().expect("Invalid x coord") as f32,
+                                p["y"].as_f64().expect("Invalid y coord") as f32,
+                                p["z"].as_f64().expect("Invalid z coord") as f32)).collect();
+        mesh.push(points);
     }
     BSplineSurf::new((degree_u, degree_v), (knots_u, knots_v), mesh)
 }
@@ -235,7 +185,7 @@ fn main() {
 
     let mut curves = Vec::new();
     let mut curves3d = Vec::new();
-    //let mut surfaces = Vec::new();
+    let mut surfaces = Vec::new();
     //let mut surface_interpolations = Vec::new();
     for f in args.get_vec("<file>") {
         let file = match File::open(&f) {
@@ -249,10 +199,10 @@ fn main() {
             curves.push(DisplayCurve::new(import_bspline(&json), &display));
         } else if ty == "bspline3d" {
             curves3d.push(DisplayCurve3D::new(import_bspline(&json), &display));
+        } else if ty == "surface" {
+            surfaces.push(DisplaySurf::new(import_surf(&json), &display));
         }
             /*
-        } else if p.extension() == Some(OsStr::new("dat")) {
-            surfaces.push(DisplaySurf::new(import_surf(p), &display));
         } else if p.extension() == Some(OsStr::new("sdat")) {
             surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(p), &display));
         } else {
@@ -419,12 +369,12 @@ fn main() {
             c.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
                      attenuation);
         }
-        /*
         for (i, s) in surfaces.iter().enumerate() {
             let sel_curve = selected_curve - curves.len() as i32 - curves3d.len() as i32;
             s.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
                      attenuation);
         }
+        /*
         for (i, s) in surface_interpolations.iter().enumerate() {
             let sel_curve = selected_curve - curves.len() as i32 - curves3d.len() as i32 - surfaces.len() as i32;
             s.render(&mut target, &shader_program, &draw_params, &proj_view, i as i32 == sel_curve,
@@ -468,7 +418,6 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
-                /*
                 for (i, c) in surfaces.iter_mut().enumerate() {
                     let id = i + curves.len() + curves3d.len();
                     ui.separator();
@@ -480,6 +429,7 @@ fn main() {
                     }
                     imgui_support::pop_id();
                 }
+                /*
                 for (i, c) in surface_interpolations.iter_mut().enumerate() {
                     let id = i + curves.len() + curves3d.len() + surfaces.len();
                     ui.separator();
@@ -499,6 +449,7 @@ fn main() {
                     /*
                     if i >= curves.len() + curves3d.len() + surfaces.len() {
                         surface_interpolations.remove(i - curves.len() - curves3d.len() - surfaces.len());
+                    }
                     } else if i >= curves.len() + curves3d.len() {
                         surfaces.remove(i - curves.len() - curves3d.len());
                     } else if i >= curves.len() {
