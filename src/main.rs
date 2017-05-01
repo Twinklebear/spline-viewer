@@ -148,7 +148,8 @@ fn main() {
         } else if ty == "surface" {
             surfaces.push(DisplaySurf::new(import_surf(&json), &display));
         } else if ty == "interpolation_u" {
-            surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(&json), &display));
+            surface_interpolations.push(DisplaySurfInterpolation::new(
+                    import_surf_interpolation(&json), &display));
         } else {
             println!("Unrecognized file type header {}", ty);
         }
@@ -166,8 +167,7 @@ fn main() {
         let look_at = Matrix4::<f32>::look_at(Point3::new(0.0, 0.0, 6.0),
                                               Point3::new(0.0, 0.0, 0.0),
                                               Vector3::new(0.0, 1.0, 0.0));
-        let inv_screen = [1.0 / width as f32, 1.0 / height as f32];
-        ArcballCamera::new(&look_at, 1.0, 5.0, inv_screen)
+        ArcballCamera::new(&look_at, 1.0, 5.0, [width as f32, height as f32])
     };
 
     let mut ortho_proj = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0, height as f32 / -200.0,
@@ -244,7 +244,8 @@ fn main() {
                     height = h;
                     ortho_proj = cgmath::ortho(width as f32 / -200.0, width as f32 / 200.0,
                                                height as f32 / -200.0, height as f32 / 200.0, -1.0, -1000.0);
-                    persp_proj = cgmath::perspective(cgmath::Deg(65.0), width as f32 / height as f32, 1.0, 1000.0);
+                    persp_proj = cgmath::perspective(cgmath::Deg(65.0), width as f32 / height as f32,
+                                                     1.0, 1000.0);
                     arcball_camera.update_screen(width as f32, height as f32);
                 },
                 Event::DroppedFile(ref p) => {
@@ -253,7 +254,8 @@ fn main() {
                         Err(e) => panic!("Failed to open file: {}", e),
                     };
                     let reader = BufReader::new(file);
-                    let json: serde_json::Value  = serde_json::from_reader(reader).expect("Failed to read input file");
+                    let json: serde_json::Value  = serde_json::from_reader(reader)
+                        .expect("Failed to read input file");
                     let ty = json["type"].as_str().expect("A curve type must be specified");
                     if ty == "bspline2d" {
                         curves.push(DisplayCurve::new(import_bspline(&json), &display));
@@ -262,7 +264,8 @@ fn main() {
                     } else if ty == "surface" {
                         surfaces.push(DisplaySurf::new(import_surf(&json), &display));
                     } else if ty == "interpolation_u" {
-                        surface_interpolations.push(DisplaySurfInterpolation::new(import_surf_interpolation(&json), &display));
+                        surface_interpolations.push(DisplaySurfInterpolation::new(
+                                import_surf_interpolation(&json), &display));
                     } else {
                         println!("Unrecognized file type header {}", ty);
                     }
@@ -281,7 +284,8 @@ fn main() {
                     camera_2d.zoom(imgui.mouse_wheel / (fbscale.1 * 10.0));
                 }
                 if imgui.mouse_pressed.0 && selected_curve < curves.len() as i32 {
-                    let unproj = (ortho_proj * camera_2d.get_mat4()).invert().expect("Uninvertable proj * view!?");
+                    let unproj = (ortho_proj * camera_2d.get_mat4()).invert()
+                        .expect("Uninvertable proj * view!?");
                     let click_pos =
                         cgmath::Point3::<f32>::new(2.0 * imgui.mouse_pos.0 as f32 / width as f32 - 1.0,
                                                    -2.0 * imgui.mouse_pos.1 as f32 / height as f32 + 1.0,

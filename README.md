@@ -2,7 +2,7 @@ Spline Viewer
 -
 
 A viewer for B-spline curves and surfaces, initially written for a course on
-computer aided geometry design. You can edit and create 2D B-splines
+computer aided geometric design. You can edit and create 2D B-splines
 and tweak some properties of loaded 3D curves and surfaces, but can't move points on 3D objects.
 
 ## Running and Loading Curves
