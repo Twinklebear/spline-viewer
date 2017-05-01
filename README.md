@@ -1,5 +1,4 @@
-Spline Viewer
--
+# Spline Viewer
 
 A viewer for B-spline curves and surfaces, initially written for a course on
 computer aided geometric design. You can edit and create 2D B-splines
