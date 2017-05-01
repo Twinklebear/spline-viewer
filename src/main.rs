@@ -106,8 +106,8 @@ fn import_surf_interpolation(json: &serde_json::Value) -> Vec<BSpline<Point>> {
 
 const USAGE: &'static str = "
 Usage:
-    bezier [<file>...]
-    bezier (-h | --help)
+    spline-viewer [<file>...]
+    spline-viewer (-h | --help)
 
 Options:
     -h, --help      Show this message.

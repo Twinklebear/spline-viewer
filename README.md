@@ -32,3 +32,9 @@ if you hold left click after adding you can continue dragging the new point.
 this new curve will have 0 control points initially and will be selected automatically. You
 can also drop a curve JSON file on the window to load it, see `examples/` for example curves.
 
+## Screenshot
+
+Here's what you'll see if you load all the provided examples and tweak the colors a bit.
+
+![spline viewer](http://i.imgur.com/EzAQZyM.png)
+
