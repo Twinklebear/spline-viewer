@@ -57,9 +57,6 @@ fn import_bspline(json: &serde_json::Value) -> BSpline<Point> {
     if let Some(k) = json["knots"].as_array() {
         knots = k.iter().map(|x| x.as_f64().expect("Invalid knot value") as f32).collect();
     }
-    println!("degree = {:?}", degree);
-    println!("points = {:?}", points);
-    println!("knots = {:?}", knots);
     BSpline::new(degree, points, knots)
 }
 
