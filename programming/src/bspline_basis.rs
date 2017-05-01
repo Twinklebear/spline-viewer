@@ -1,8 +1,4 @@
 use std::f32;
-use std::fmt::Debug;
-use std::iter;
-use std::slice;
-
 
 /// Just the basis functions for a B-spline, can return the B-spline
 /// basis function values for specific basis functions at desired t values
@@ -36,10 +32,6 @@ impl BSplineBasis {
         }
         BSplineBasis { degree: degree, knots: knots, modified_knot: modified_knot }
     }
-    /// Get an iterator over the knots.
-    pub fn knots(&self) -> slice::Iter<f32> {
-        self.knots.iter()
-    }
     /// Get the curve degree
     pub fn degree(&self) -> usize {
         self.degree
@@ -52,9 +44,9 @@ impl BSplineBasis {
         let mut abscissa = Vec::with_capacity(num_abscissa);
         let domain = self.knot_domain();
         for i in 0..num_abscissa {
-            let g = self.knots.iter().enumerate().skip_while(|&(c, ref x)| c < i + 1)
-                .take_while(|&(c, ref x)| c <= i + self.degree)
-                .map(|(c, x)| x)
+            let g = self.knots.iter().enumerate().skip_while(|&(c, _)| c < i + 1)
+                .take_while(|&(c, _)| c <= i + self.degree)
+                .map(|(_, x)| x)
                 .fold(0.0, |acc, x| acc + *x) / self.degree as f32;
             // TODO: Shouldn't this not be necessary? How can I get an abscissa outside
             // the knot domain?

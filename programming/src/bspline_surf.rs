@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::fmt::Debug;
 use std::iter;
 use std::slice;
@@ -54,9 +56,9 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
         let mut abscissa = Vec::with_capacity(self.control_mesh.len());
         let domain = self.knot_domain_u();
         for i in 0..self.control_mesh.len() {
-            let g = self.knots_u.iter().enumerate().skip_while(|&(c, ref x)| c < i + 1)
-                .take_while(|&(c, ref x)| c <= i + self.degree_u)
-                .map(|(c, x)| x)
+            let g = self.knots_u.iter().enumerate().skip_while(|&(c, _)| c < i + 1)
+                .take_while(|&(c, _)| c <= i + self.degree_u)
+                .map(|(_, x)| x)
                 .fold(0.0, |acc, x| acc + *x) / self.degree_u as f32;
             // TODO: Shouldn't this not be necessary? How can I get an abscissa outside
             // the knot domain?
@@ -82,9 +84,9 @@ impl<T: Interpolate + Copy + Debug> BSplineSurf<T> {
         let mut abscissa = Vec::with_capacity(self.control_mesh[0].len());
         let domain = self.knot_domain_v();
         for i in 0..self.control_mesh[0].len() {
-            let g = self.knots_v.iter().enumerate().skip_while(|&(c, ref x)| c < i + 1)
-                .take_while(|&(c, ref x)| c <= i + self.degree_v)
-                .map(|(c, x)| x)
+            let g = self.knots_v.iter().enumerate().skip_while(|&(c, _)| c < i + 1)
+                .take_while(|&(c, _)| c <= i + self.degree_v)
+                .map(|(_, x)| x)
                 .fold(0.0, |acc, x| acc + *x) / self.degree_v as f32;
             // TODO: Shouldn't this not be necessary? How can I get an abscissa outside
             // the knot domain?

@@ -11,9 +11,7 @@ use imgui::Ui;
 use bspline_surf::BSplineSurf;
 use point::Point;
 
-pub struct DisplaySurf<'a, F: 'a + Facade> {
-    display: &'a F,
-    surf: BSplineSurf<Point>,
+pub struct DisplaySurf {
     // Plain isolines along the curve
     isolines_u_vbos: Vec<VertexBuffer<Point>>,
     isolines_v_vbos: Vec<VertexBuffer<Point>>,
@@ -34,8 +32,8 @@ pub struct DisplaySurf<'a, F: 'a + Facade> {
     control_color: [f32; 3],
 }
 
-impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
-    pub fn new(surf: BSplineSurf<Point>, display: &'a F) -> DisplaySurf<'a, F> {
+impl DisplaySurf {
+    pub fn new<'a, F: 'a + Facade>(surf: BSplineSurf<Point>, display: &'a F) -> DisplaySurf {
         let isoline_step_size = 0.1;
         let step_size = 0.01;
 
@@ -160,9 +158,7 @@ impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
         }
         let control_points_vbo = VertexBuffer::new(display, &control_points[..]).unwrap();
 
-        DisplaySurf { display: display,
-                      surf: surf,
-                      isolines_u_vbos: isolines_u_vbos,
+        DisplaySurf { isolines_u_vbos: isolines_u_vbos,
                       isolines_v_vbos: isolines_v_vbos,
                       greville_u_vbos: greville_u_vbos,
                       greville_v_vbos: greville_v_vbos,
@@ -240,42 +236,14 @@ impl<'a, F: 'a + Facade> DisplaySurf<'a, F> {
     }
     pub fn draw_ui(&mut self, ui: &Ui) {
         ui.text(im_str!("3D Surface"));
-        //ui.text(im_str!("Number of Control Points: {}", self.curve.control_points.len()));
         ui.checkbox(im_str!("Draw Surface"), &mut self.draw_surf);
         ui.checkbox(im_str!("Draw Greville Isolines"), &mut self.draw_greville);
         ui.checkbox(im_str!("Draw Knot Isolines"), &mut self.draw_knots);
         ui.checkbox(im_str!("Draw Control Points"), &mut self.draw_control_points);
-        /*
-        let mut curve_degree = self.curve.degree() as i32;
-        if ui.slider_int(im_str!("Curve Degree"), &mut curve_degree, 1,
-            self.curve.max_possible_degree() as i32).build()
-        {
-            if self.curve.max_possible_degree() != 0 {
-                self.curve.set_degree(curve_degree as usize);
-                curve_changed = true;
-            }
-        }
-        if curve_changed && !self.curve.control_points.is_empty() {
-            let step_size = 0.01;
-            let t_range = self.curve.knot_domain();
-            let steps = ((t_range.1 - t_range.0) / step_size) as usize;
-            self.control_points_vbo = VertexBuffer::new(self.display, &self.curve.control_points[..]).unwrap();
-            let mut points = Vec::with_capacity(steps);
-            // Just draw the first one for now
-            for s in 0..steps + 1 {
-                let t = step_size * s as f32 + t_range.0;
-                points.push(self.curve.point(t));
-            }
-            self.curve_points_vbo = VertexBuffer::new(self.display, &points[..]).unwrap();
-        }
-        */
         ui.color_edit3(im_str!("Curve Color"), &mut self.curve_color).build();
         ui.color_edit3(im_str!("Greville Color"), &mut self.greville_color).build();
         ui.color_edit3(im_str!("Knot Color"), &mut self.knot_color).build();
         ui.color_edit3(im_str!("Control Color"), &mut self.control_color).build();
-    }
-    pub fn get_surf(&self) -> &BSplineSurf<Point> {
-        &self.surf
     }
 }
 

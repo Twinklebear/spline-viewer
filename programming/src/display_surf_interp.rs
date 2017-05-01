@@ -1,15 +1,13 @@
-/// Manages displaying and toggling interaction modes with
-/// a specific BSpline surface in the scene.
+//! Manages displaying and toggling interaction modes with
+//! a specific BSpline surface in the scene.
 
 use std::f32;
-use std::iter::FromIterator;
-use std::ops::Index;
 
 use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
 use imgui::Ui;
-use rulinalg::matrix::{Matrix, BaseMatrix};
+use rulinalg::matrix::Matrix;
 use rulinalg::vector::Vector;
 
 use bspline::BSpline;
@@ -21,7 +19,7 @@ use point::Point;
 pub struct DisplaySurfInterpolation<'a, F: 'a + Facade> {
     display: &'a F,
     curves: Vec<BSpline<Point>>,
-    surf: DisplaySurf<'a, F>,
+    surf: DisplaySurf,
     interpolation_degree: usize,
     // The input curves
     input_curves_vbo: Vec<VertexBuffer<Point>>,
@@ -37,7 +35,7 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         let mut control_points = Vec::new();
         let mut input_curves_vbo = Vec::with_capacity(curves.len());
         let step_size = 0.01;
-        for (i, c) in curves.iter().enumerate() {
+        for c in curves.iter() {
             let t_range = c.knot_domain();
             let steps = ((t_range.1 - t_range.0) / step_size) as usize;
             let mut points = Vec::with_capacity(steps);
@@ -106,9 +104,6 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         }
         self.surf.draw_ui(ui);
     }
-    pub fn get_surf(&self) -> &BSplineSurf<Point> {
-        self.surf.get_surf()
-    }
 }
 
 fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSplineSurf<Point> {
@@ -120,7 +115,7 @@ fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSpl
     }
     // Setup the bases for u and v so we can build the matrices
     let basis_u = BSplineBasis::new(curves[0].degree(), curves[0].knots().map(|x| *x).collect());
-    let abscissa_u = basis_u.greville_abscissa();
+    //let abscissa_u = basis_u.greville_abscissa();
     // Is the result right for cubic?
     let basis_v = BSplineBasis::clamped_uniform(degree, curves.len());
     let abscissa_v = basis_v.greville_abscissa();

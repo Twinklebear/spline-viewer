@@ -1,5 +1,6 @@
 //! This module provides functionality for computing a Bezier curve
 //! defined by a set of control points on any type that can be linearly interpolated.
+#![allow(dead_code)]
 
 use std::ops::{Mul, Add};
 use std::fmt::Debug;

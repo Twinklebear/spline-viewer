@@ -8,7 +8,6 @@ use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
 use imgui::Ui;
 
-use bezier::Bezier;
 use bspline::BSpline;
 use point::Point;
 
@@ -20,7 +19,6 @@ pub struct DisplayCurve3D<'a, F: 'a + Facade> {
     draw_curve: bool,
     draw_control_poly: bool,
     draw_control_points: bool,
-    moving_point: Option<usize>,
     curve_color: [f32; 3],
     control_color: [f32; 3],
 }
@@ -52,7 +50,6 @@ impl<'a, F: 'a + Facade> DisplayCurve3D<'a, F> {
                        draw_curve: true,
                        draw_control_poly: true,
                        draw_control_points: true,
-                       moving_point: None,
                        curve_color: [0.8, 0.8, 0.1],
                        control_color: [0.8, 0.8, 0.8],
         }

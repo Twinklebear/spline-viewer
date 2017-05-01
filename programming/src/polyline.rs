@@ -1,5 +1,6 @@
-/// Manages displaying and toggling interaction modes with
-/// a specific Bezier curve in the scene.
+//! Manages displaying and toggling interaction modes with
+//! a specific Bezier curve in the scene.
+#![allow(dead_code)]
 
 use std::f32;
 

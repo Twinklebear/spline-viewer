@@ -8,7 +8,6 @@ use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
 use imgui::Ui;
 
-use bezier::Bezier;
 use bspline::BSpline;
 use point::Point;
 
