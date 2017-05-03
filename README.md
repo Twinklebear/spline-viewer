@@ -7,10 +7,11 @@ and tweak some properties of loaded 3D curves and surfaces, but can't move point
 ## Running and Loading Curves
 
 To run the program and specify some curves or data files to load on the command line you can
-run through cargo with arguments to the program following a second --
+run through cargo with arguments to the program following a second `--` or run the program directly.
+Examples of each JSON curve format can be found in the examples.
 
 ```
-cargo run --release -- <list of .json files>
+./spline-viewer <list of .json files>
 ```
 
 You can also pass -h as an argument to print the program options.
