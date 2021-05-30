@@ -2,10 +2,10 @@
 //! defined by a set of control points on any type that can be linearly interpolated.
 #![allow(dead_code)]
 
-use std::ops::{Mul, Add};
-use std::fmt::Debug;
-use std::slice::Iter;
 use std::f32;
+use std::fmt::Debug;
+use std::ops::{Add, Mul};
+use std::slice::Iter;
 
 /// The interpolate trait is used to linearly interpolate between two types (or in the
 /// case of Quaternions, spherically linearly interpolate). The B-spline curve uses this
@@ -53,7 +53,9 @@ pub struct Bezier<T: Interpolate + ProjectToSegment + Copy> {
 impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
     /// Create a new Bezier curve of formed by interpolating the `control_points`
     pub fn new(control_points: Vec<T>) -> Bezier<T> {
-        Bezier { control_points: control_points }
+        Bezier {
+            control_points: control_points,
+        }
     }
     /// Compute a point on the curve at `t`, the parameter **must** be in the inclusive
     /// range [0, 1]. If `t` is out of bounds this function will assert
@@ -75,18 +77,24 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
             return 1;
         }
         // Go through all segments of the control polygon and find the nearest one
-        let nearest = self.control_points.windows(2).enumerate()
+        let nearest = self
+            .control_points
+            .windows(2)
+            .enumerate()
             .map(|(i, x)| {
                 let proj = t.project(&x[0], &x[1]);
                 (i, proj.0, proj.1)
             })
-            .fold((0, f32::MAX, 0.0), |acc, (i, d, l)| {
-                if d < acc.1 {
-                    (i, d, l)
-                } else {
-                    acc
-                }
-            });
+            .fold(
+                (0, f32::MAX, 0.0),
+                |acc, (i, d, l)| {
+                    if d < acc.1 {
+                        (i, d, l)
+                    } else {
+                        acc
+                    }
+                },
+            );
         // Check if we're appending or prepending the point
         if nearest.0 == 0 && nearest.2 == 0.0 {
             self.control_points.insert(0, t);
@@ -110,4 +118,3 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> Bezier<T> {
         tmp[0]
     }
 }
-

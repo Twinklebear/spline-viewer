@@ -1,8 +1,8 @@
-use std::fmt::Debug;
-use std::slice::Iter;
 use std::f32;
+use std::fmt::Debug;
 use std::iter;
 use std::slice;
+use std::slice::Iter;
 
 use bezier::{Interpolate, ProjectToSegment};
 
@@ -33,11 +33,18 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
             panic!("Too few control points for curve");
         }
         if !knots.is_empty() && knots.len() != control_points.len() + degree + 1 {
-            panic!(format!("Invalid number of knots, got {}, expected {}", knots.len(),
-                control_points.len() + degree + 1));
+            panic!(format!(
+                "Invalid number of knots, got {}, expected {}",
+                knots.len(),
+                control_points.len() + degree + 1
+            ));
         }
         knots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let mut spline = BSpline { degree: degree, control_points: control_points, knots: knots };
+        let mut spline = BSpline {
+            degree: degree,
+            control_points: control_points,
+            knots: knots,
+        };
         if spline.knots.is_empty() {
             spline.fill_knot_vector(true, true);
         }
@@ -45,7 +52,11 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
     }
     /// Create a new empty BSpline.
     pub fn empty() -> BSpline<T> {
-        BSpline { degree: 0, control_points: Vec::new(), knots: Vec::new() }
+        BSpline {
+            degree: 0,
+            control_points: Vec::new(),
+            knots: Vec::new(),
+        }
     }
     /// Compute a point on the curve at `t`, the parameter **must** be in the inclusive range
     /// of values returned by `knot_domain`. If `t` is out of bounds this function will assert
@@ -56,8 +67,9 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
         // to find i such that: knot[i] <= t < knot[i + 1]
         let i = match upper_bounds(&self.knots[..], t) {
             Some(x) if x == 0 => self.degree,
-            Some(x) if x >= self.knots.len() - self.degree - 1 =>
-                self.knots.len() - self.degree - 1,
+            Some(x) if x >= self.knots.len() - self.degree - 1 => {
+                self.knots.len() - self.degree - 1
+            }
             Some(x) => x,
             None => self.knots.len() - self.degree - 1,
         };
@@ -80,11 +92,17 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
     /// passing a `t` value outside of this range will result in an assert on debug builds
     /// and likely a crash on release builds.
     pub fn knot_domain(&self) -> (f32, f32) {
-        (self.knots[self.degree], self.knots[self.knots.len() - 1 - self.degree])
+        (
+            self.knots[self.degree],
+            self.knots[self.knots.len() - 1 - self.degree],
+        )
     }
     /// Get an iterator over the knots within the domain
     pub fn knot_domain_iter(&self) -> iter::Take<iter::Skip<slice::Iter<f32>>> {
-        self.knots.iter().skip(self.degree).take(self.knots.len() - 2 * self.degree)
+        self.knots
+            .iter()
+            .skip(self.degree)
+            .take(self.knots.len() - 2 * self.degree)
     }
     /// Get the max degree of curve that this set of control points can support
     pub fn max_possible_degree(&self) -> usize {
@@ -114,9 +132,16 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
         self.fill_knot_vector(clamped, clamped);
     }
     pub fn is_clamped(&self) -> bool {
-        let left_clamped = self.knots.iter().take(self.degree + 1)
+        let left_clamped = self
+            .knots
+            .iter()
+            .take(self.degree + 1)
             .fold(true, |acc, x| *x == self.knots[0] && acc);
-        let right_clamped = self.knots.iter().rev().take(self.degree + 1)
+        let right_clamped = self
+            .knots
+            .iter()
+            .rev()
+            .take(self.degree + 1)
             .fold(true, |acc, x| *x == self.knots[self.knots.len() - 1] && acc);
         left_clamped && right_clamped
     }
@@ -128,9 +153,16 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
     /// whether it was open/clamped before (Elaine: terms floating/open)
     fn generate_knot_vector(&mut self) {
         // Check if we're clamped on the left/right (Elaine calls this end condition open)
-        let left_clamped = self.knots.iter().take(self.degree + 1)
+        let left_clamped = self
+            .knots
+            .iter()
+            .take(self.degree + 1)
             .fold(true, |acc, x| *x == self.knots[0] && acc);
-        let right_clamped = self.knots.iter().rev().take(self.degree + 1)
+        let right_clamped = self
+            .knots
+            .iter()
+            .rev()
+            .take(self.degree + 1)
             .fold(true, |acc, x| *x == self.knots[self.knots.len() - 1] && acc);
         self.fill_knot_vector(left_clamped, right_clamped);
     }
@@ -141,9 +173,10 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
         for i in 0..self.knots_required() {
             self.knots.push(x);
             if !(left_clamped && i < self.degree)
-                && !(right_clamped && i >= self.knots_required() - 1 - self.degree) {
-                    x += 1.0;
-                }
+                && !(right_clamped && i >= self.knots_required() - 1 - self.degree)
+            {
+                x += 1.0;
+            }
         }
     }
     /// Iteratively compute de Boor's B-spline algorithm, this computes the recursive
@@ -161,7 +194,8 @@ impl<T: Interpolate + Copy + Debug> BSpline<T> {
             let k = lvl + 1;
             for j in 0..self.degree - lvl {
                 let i = j + k + i_start - self.degree;
-                let alpha = (t - self.knots[i - 1]) / (self.knots[i + self.degree - k] - self.knots[i - 1]);
+                let alpha =
+                    (t - self.knots[i - 1]) / (self.knots[i + self.degree - k] - self.knots[i - 1]);
                 debug_assert!(!alpha.is_nan());
                 tmp[j] = tmp[j].interpolate(&tmp[j + 1], alpha);
             }
@@ -180,18 +214,24 @@ impl<T: Interpolate + ProjectToSegment + Copy + Debug> BSpline<T> {
             return 1;
         }
         // Go through all segments of the control polygon and find the nearest one
-        let nearest = self.control_points.windows(2).enumerate()
+        let nearest = self
+            .control_points
+            .windows(2)
+            .enumerate()
             .map(|(i, x)| {
                 let proj = t.project(&x[0], &x[1]);
                 (i, proj.0, proj.1)
             })
-            .fold((0, f32::MAX, 0.0), |acc, (i, d, l)| {
-                if d < acc.1 {
-                    (i, d, l)
-                } else {
-                    acc
-                }
-            });
+            .fold(
+                (0, f32::MAX, 0.0),
+                |acc, (i, d, l)| {
+                    if d < acc.1 {
+                        (i, d, l)
+                    } else {
+                        acc
+                    }
+                },
+            );
         // Check if we're appending or prepending the point
         let idx = if nearest.0 == 0 && nearest.2 == 0.0 {
             self.control_points.insert(0, t);
@@ -232,4 +272,3 @@ fn upper_bounds(data: &[f32], value: f32) -> Option<usize> {
         Some(first)
     }
 }
-

@@ -4,9 +4,9 @@
 
 use std::f32;
 
-use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
+use glium::{DrawParameters, Program, Surface, VertexBuffer};
 use imgui::Ui;
 
 use point::Point;
@@ -20,28 +20,48 @@ pub struct Polyline {
 
 impl Polyline {
     pub fn new<F: Facade>(points: Vec<Point>, display: &F) -> Polyline {
-        let points_vbo  = VertexBuffer::immutable(display, &points[..]).unwrap();
-        Polyline { points_vbo: points_vbo,
-                   draw_lines: true,
-                   draw_points: true,
-                   color: [0.8, 0.8, 0.8],
+        let points_vbo = VertexBuffer::immutable(display, &points[..]).unwrap();
+        Polyline {
+            points_vbo: points_vbo,
+            draw_lines: true,
+            draw_points: true,
+            color: [0.8, 0.8, 0.8],
         }
     }
-    pub fn render<S: Surface>(&self, target: &mut S, program: &Program, draw_params: &DrawParameters,
-                  proj_view: &[[f32; 4]; 4]) {
+    pub fn render<S: Surface>(
+        &self,
+        target: &mut S,
+        program: &Program,
+        draw_params: &DrawParameters,
+        proj_view: &[[f32; 4]; 4],
+    ) {
         let uniforms = uniform! {
             proj_view: *proj_view,
             pcolor: self.color,
         };
         // Draw the control polygon
         if self.draw_lines {
-            target.draw(&self.points_vbo, &NoIndices(PrimitiveType::LineStrip),
-                        &program, &uniforms, &draw_params).unwrap();
+            target
+                .draw(
+                    &self.points_vbo,
+                    &NoIndices(PrimitiveType::LineStrip),
+                    &program,
+                    &uniforms,
+                    &draw_params,
+                )
+                .unwrap();
         }
         // Draw the control points
         if self.draw_points {
-            target.draw(&self.points_vbo, &NoIndices(PrimitiveType::Points),
-                        &program, &uniforms, &draw_params).unwrap();
+            target
+                .draw(
+                    &self.points_vbo,
+                    &NoIndices(PrimitiveType::Points),
+                    &program,
+                    &uniforms,
+                    &draw_params,
+                )
+                .unwrap();
         }
     }
     pub fn draw_ui(&mut self, ui: &Ui) {
@@ -51,4 +71,3 @@ impl Polyline {
         ui.color_edit3(im_str!("Color"), &mut self.color).build();
     }
 }
-

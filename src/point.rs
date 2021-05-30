@@ -1,5 +1,5 @@
-use std::ops::{Mul, Add, Sub, Div};
 use std::f32;
+use std::ops::{Add, Div, Mul, Sub};
 
 use bezier::ProjectToSegment;
 
@@ -33,25 +33,41 @@ implement_vertex!(Point, pos);
 impl Mul<f32> for Point {
     type Output = Point;
     fn mul(self, rhs: f32) -> Point {
-        Point { pos: [self.pos[0] * rhs, self.pos[1] * rhs, self.pos[2] * rhs] }
+        Point {
+            pos: [self.pos[0] * rhs, self.pos[1] * rhs, self.pos[2] * rhs],
+        }
     }
 }
 impl Div<f32> for Point {
     type Output = Point;
     fn div(self, rhs: f32) -> Point {
-        Point { pos: [self.pos[0] / rhs, self.pos[1] / rhs, self.pos[2] / rhs] }
+        Point {
+            pos: [self.pos[0] / rhs, self.pos[1] / rhs, self.pos[2] / rhs],
+        }
     }
 }
 impl Add for Point {
     type Output = Point;
     fn add(self, rhs: Point) -> Point {
-        Point { pos: [self.pos[0] + rhs.pos[0], self.pos[1] + rhs.pos[1], self.pos[2] + rhs.pos[2]] }
+        Point {
+            pos: [
+                self.pos[0] + rhs.pos[0],
+                self.pos[1] + rhs.pos[1],
+                self.pos[2] + rhs.pos[2],
+            ],
+        }
     }
 }
 impl Sub for Point {
     type Output = Point;
     fn sub(self, rhs: Point) -> Point {
-        Point { pos: [self.pos[0] - rhs.pos[0], self.pos[1] - rhs.pos[1], self.pos[2] - rhs.pos[2]] }
+        Point {
+            pos: [
+                self.pos[0] - rhs.pos[0],
+                self.pos[1] - rhs.pos[1],
+                self.pos[2] - rhs.pos[2],
+            ],
+        }
     }
 }
 impl ProjectToSegment for Point {
@@ -64,4 +80,3 @@ impl ProjectToSegment for Point {
         (d, t)
     }
 }
-

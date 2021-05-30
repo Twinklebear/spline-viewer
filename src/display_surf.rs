@@ -1,11 +1,10 @@
 /// Manages displaying and toggling interaction modes with
 /// a specific BSpline surface in the scene.
-
 use std::f32;
 
-use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
+use glium::{DrawParameters, Program, Surface, VertexBuffer};
 use imgui::Ui;
 
 use bspline_surf::BSplineSurf;
@@ -52,32 +51,48 @@ impl DisplaySurf {
         // an isoline is along the other axis, or greville point, or knot value so that
         // when the lines cross they both have that crossing point
         // Every knot value along u that we're going to have an isoline on
-        let mut t_vals_u: Vec<_> = (0..isoline_start_steps_u + 1).map(|us| isoline_step_size * us as f32 + t_range_u.0)
+        let mut t_vals_u: Vec<_> = (0..isoline_start_steps_u + 1)
+            .map(|us| isoline_step_size * us as f32 + t_range_u.0)
             .chain(abscissa_u.iter().map(|x| *x))
-            .chain(surf.knots_u.iter()
-                   .filter_map(|x| if *x >= t_range_u.0 && *x <= t_range_u.1 { Some(*x) } else { None }))
+            .chain(surf.knots_u.iter().filter_map(|x| {
+                if *x >= t_range_u.0 && *x <= t_range_u.1 {
+                    Some(*x)
+                } else {
+                    None
+                }
+            }))
             .collect();
         t_vals_u.sort_by(|a, b| a.partial_cmp(b).unwrap());
         t_vals_u.dedup();
 
         // Every knot value along v that we're going to have an isoline on
-        let mut t_vals_v: Vec<_> = (0..isoline_start_steps_v + 1).map(|vs| isoline_step_size * vs as f32 + t_range_v.0)
+        let mut t_vals_v: Vec<_> = (0..isoline_start_steps_v + 1)
+            .map(|vs| isoline_step_size * vs as f32 + t_range_v.0)
             .chain(abscissa_v.iter().map(|x| *x))
-            .chain(surf.knots_v.iter()
-                   .filter_map(|x| if *x >= t_range_v.0 && *x <= t_range_v.1 { Some(*x) } else { None }))
+            .chain(surf.knots_v.iter().filter_map(|x| {
+                if *x >= t_range_v.0 && *x <= t_range_v.1 {
+                    Some(*x)
+                } else {
+                    None
+                }
+            }))
             .collect();
         t_vals_v.sort_by(|a, b| a.partial_cmp(b).unwrap());
         t_vals_v.dedup();
 
         // t values for an isoline along u
-        let mut isoline_u_t_vals: Vec<_> = (0..steps_u + 1).map(|u| step_size * u as f32 + t_range_u.0)
-            .chain(t_vals_u.iter().map(|x| *x)).collect();
+        let mut isoline_u_t_vals: Vec<_> = (0..steps_u + 1)
+            .map(|u| step_size * u as f32 + t_range_u.0)
+            .chain(t_vals_u.iter().map(|x| *x))
+            .collect();
         isoline_u_t_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
         isoline_u_t_vals.dedup();
 
         // t values for an isoline along v
-        let mut isoline_v_t_vals: Vec<_> = (0..steps_v + 1).map(|u| step_size * u as f32 + t_range_v.0)
-            .chain(t_vals_v.iter().map(|x| *x)).collect();
+        let mut isoline_v_t_vals: Vec<_> = (0..steps_v + 1)
+            .map(|u| step_size * u as f32 + t_range_v.0)
+            .chain(t_vals_v.iter().map(|x| *x))
+            .collect();
         isoline_v_t_vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
         isoline_v_t_vals.dedup();
 
@@ -128,7 +143,11 @@ impl DisplaySurf {
         // Compute isolines along u
         for vs in 0..isoline_start_steps_v + 1 {
             let v = isoline_step_size * vs as f32 + t_range_v.0;
-            if !abscissa_v.iter().chain(surf.knots_v.iter()).any(|x| *x == v) {
+            if !abscissa_v
+                .iter()
+                .chain(surf.knots_v.iter())
+                .any(|x| *x == v)
+            {
                 let curve = surf.isoline_u(v);
                 let mut points = Vec::with_capacity(steps_u);
                 for t in &isoline_u_t_vals[..] {
@@ -140,7 +159,11 @@ impl DisplaySurf {
         // Compute isolines along v
         for us in 0..isoline_start_steps_u + 1 {
             let u = isoline_step_size * us as f32 + t_range_u.0;
-            if !abscissa_u.iter().chain(surf.knots_u.iter()).any(|x| *x == u) {
+            if !abscissa_u
+                .iter()
+                .chain(surf.knots_u.iter())
+                .any(|x| *x == u)
+            {
                 let curve = surf.isoline_v(u);
                 let mut points = Vec::with_capacity(steps_v);
                 for t in &isoline_v_t_vals[..] {
@@ -158,50 +181,84 @@ impl DisplaySurf {
         }
         let control_points_vbo = VertexBuffer::new(display, &control_points[..]).unwrap();
 
-        DisplaySurf { isolines_u_vbos: isolines_u_vbos,
-                      isolines_v_vbos: isolines_v_vbos,
-                      greville_u_vbos: greville_u_vbos,
-                      greville_v_vbos: greville_v_vbos,
-                      knot_u_vbos: knot_u_vbos,
-                      knot_v_vbos: knot_v_vbos,
-                      control_points_vbo: control_points_vbo,
-                      draw_surf: true,
-                      draw_greville: true,
-                      draw_knots: true,
-                      draw_control_points: true,
-                      curve_color: [0.8, 0.8, 0.1],
-                      greville_color: [0.1, 0.8, 0.8],
-                      knot_color: [0.8, 0.1, 0.8],
-                      control_color: [0.8, 0.8, 0.8],
+        DisplaySurf {
+            isolines_u_vbos: isolines_u_vbos,
+            isolines_v_vbos: isolines_v_vbos,
+            greville_u_vbos: greville_u_vbos,
+            greville_v_vbos: greville_v_vbos,
+            knot_u_vbos: knot_u_vbos,
+            knot_v_vbos: knot_v_vbos,
+            control_points_vbo: control_points_vbo,
+            draw_surf: true,
+            draw_greville: true,
+            draw_knots: true,
+            draw_control_points: true,
+            curve_color: [0.8, 0.8, 0.1],
+            greville_color: [0.1, 0.8, 0.8],
+            knot_color: [0.8, 0.1, 0.8],
+            control_color: [0.8, 0.8, 0.8],
         }
     }
-    pub fn render<S: Surface>(&self, target: &mut S, program: &Program, draw_params: &DrawParameters,
-                  proj_view: &[[f32; 4]; 4], selected: bool, attenuation: f32) {
-        let (curve_color, control_color, greville_color, knot_color) =
-            if selected {
-                (self.curve_color, self.control_color, self.greville_color, self.knot_color)
-            } else {
-                ([attenuation * self.curve_color[0], attenuation * self.curve_color[1],
-                  attenuation * self.curve_color[2]],
-
-                 [attenuation * self.control_color[0], attenuation * self.control_color[1],
-                  attenuation * self.control_color[2]],
-
-                 [attenuation * self.greville_color[0], attenuation * self.greville_color[1],
-                  attenuation * self.greville_color[2]],
-
-                 [attenuation * self.knot_color[0], attenuation * self.knot_color[1],
-                  attenuation * self.knot_color[2]])
-            };
+    pub fn render<S: Surface>(
+        &self,
+        target: &mut S,
+        program: &Program,
+        draw_params: &DrawParameters,
+        proj_view: &[[f32; 4]; 4],
+        selected: bool,
+        attenuation: f32,
+    ) {
+        let (curve_color, control_color, greville_color, knot_color) = if selected {
+            (
+                self.curve_color,
+                self.control_color,
+                self.greville_color,
+                self.knot_color,
+            )
+        } else {
+            (
+                [
+                    attenuation * self.curve_color[0],
+                    attenuation * self.curve_color[1],
+                    attenuation * self.curve_color[2],
+                ],
+                [
+                    attenuation * self.control_color[0],
+                    attenuation * self.control_color[1],
+                    attenuation * self.control_color[2],
+                ],
+                [
+                    attenuation * self.greville_color[0],
+                    attenuation * self.greville_color[1],
+                    attenuation * self.greville_color[2],
+                ],
+                [
+                    attenuation * self.knot_color[0],
+                    attenuation * self.knot_color[1],
+                    attenuation * self.knot_color[2],
+                ],
+            )
+        };
         let uniforms = uniform! {
             proj_view: *proj_view,
             pcolor: curve_color,
         };
         // Draw the curve
         if self.draw_surf {
-            for iso in self.isolines_u_vbos.iter().chain(self.isolines_v_vbos.iter()) {
-                target.draw(iso, &NoIndices(PrimitiveType::LineStrip),
-                            &program, &uniforms, &draw_params).unwrap();
+            for iso in self
+                .isolines_u_vbos
+                .iter()
+                .chain(self.isolines_v_vbos.iter())
+            {
+                target
+                    .draw(
+                        iso,
+                        &NoIndices(PrimitiveType::LineStrip),
+                        &program,
+                        &uniforms,
+                        &draw_params,
+                    )
+                    .unwrap();
             }
         }
         let uniforms = uniform! {
@@ -209,9 +266,20 @@ impl DisplaySurf {
             pcolor: greville_color,
         };
         if self.draw_greville {
-            for iso in self.greville_u_vbos.iter().chain(self.greville_v_vbos.iter()) {
-                target.draw(iso, &NoIndices(PrimitiveType::LineStrip),
-                            &program, &uniforms, &draw_params).unwrap();
+            for iso in self
+                .greville_u_vbos
+                .iter()
+                .chain(self.greville_v_vbos.iter())
+            {
+                target
+                    .draw(
+                        iso,
+                        &NoIndices(PrimitiveType::LineStrip),
+                        &program,
+                        &uniforms,
+                        &draw_params,
+                    )
+                    .unwrap();
             }
         }
         let uniforms = uniform! {
@@ -220,8 +288,15 @@ impl DisplaySurf {
         };
         if self.draw_knots {
             for iso in self.knot_u_vbos.iter().chain(self.knot_v_vbos.iter()) {
-                target.draw(iso, &NoIndices(PrimitiveType::LineStrip),
-                            &program, &uniforms, &draw_params).unwrap();
+                target
+                    .draw(
+                        iso,
+                        &NoIndices(PrimitiveType::LineStrip),
+                        &program,
+                        &uniforms,
+                        &draw_params,
+                    )
+                    .unwrap();
             }
         }
         let uniforms = uniform! {
@@ -230,8 +305,15 @@ impl DisplaySurf {
         };
         if self.draw_control_points {
             // Draw the control points
-            target.draw(&self.control_points_vbo, &NoIndices(PrimitiveType::Points),
-                        &program, &uniforms, &draw_params).unwrap();
+            target
+                .draw(
+                    &self.control_points_vbo,
+                    &NoIndices(PrimitiveType::Points),
+                    &program,
+                    &uniforms,
+                    &draw_params,
+                )
+                .unwrap();
         }
     }
     pub fn draw_ui(&mut self, ui: &Ui) {
@@ -239,12 +321,17 @@ impl DisplaySurf {
         ui.checkbox(im_str!("Draw Surface"), &mut self.draw_surf);
         ui.checkbox(im_str!("Draw Greville Isolines"), &mut self.draw_greville);
         ui.checkbox(im_str!("Draw Knot Isolines"), &mut self.draw_knots);
-        ui.checkbox(im_str!("Draw Control Points"), &mut self.draw_control_points);
-        ui.color_edit3(im_str!("Curve Color"), &mut self.curve_color).build();
-        ui.color_edit3(im_str!("Greville Color"), &mut self.greville_color).build();
-        ui.color_edit3(im_str!("Knot Color"), &mut self.knot_color).build();
-        ui.color_edit3(im_str!("Control Color"), &mut self.control_color).build();
+        ui.checkbox(
+            im_str!("Draw Control Points"),
+            &mut self.draw_control_points,
+        );
+        ui.color_edit3(im_str!("Curve Color"), &mut self.curve_color)
+            .build();
+        ui.color_edit3(im_str!("Greville Color"), &mut self.greville_color)
+            .build();
+        ui.color_edit3(im_str!("Knot Color"), &mut self.knot_color)
+            .build();
+        ui.color_edit3(im_str!("Control Color"), &mut self.control_color)
+            .build();
     }
 }
-
-

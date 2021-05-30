@@ -19,7 +19,11 @@ impl BSplineBasis {
                 modified_knot = i;
             }
         }
-        BSplineBasis { degree: degree, knots: knots, modified_knot: modified_knot }
+        BSplineBasis {
+            degree: degree,
+            knots: knots,
+            modified_knot: modified_knot,
+        }
     }
     /// Make a new basis with a generated uniform clamped knot vector
     pub fn clamped_uniform(degree: usize, num_points: usize) -> BSplineBasis {
@@ -30,24 +34,36 @@ impl BSplineBasis {
                 modified_knot = i;
             }
         }
-        BSplineBasis { degree: degree, knots: knots, modified_knot: modified_knot }
+        BSplineBasis {
+            degree: degree,
+            knots: knots,
+            modified_knot: modified_knot,
+        }
     }
     /// Get the curve degree
     pub fn degree(&self) -> usize {
         self.degree
     }
     pub fn knot_domain(&self) -> (f32, f32) {
-        (self.knots[self.degree], self.knots[self.knots.len() - 1 - self.degree])
+        (
+            self.knots[self.degree],
+            self.knots[self.knots.len() - 1 - self.degree],
+        )
     }
     pub fn greville_abscissa(&self) -> Vec<f32> {
         let num_abscissa = self.knots.len() - self.degree - 1;
         let mut abscissa = Vec::with_capacity(num_abscissa);
         let domain = self.knot_domain();
         for i in 0..num_abscissa {
-            let g = self.knots.iter().enumerate().skip_while(|&(c, _)| c < i + 1)
+            let g = self
+                .knots
+                .iter()
+                .enumerate()
+                .skip_while(|&(c, _)| c < i + 1)
                 .take_while(|&(c, _)| c <= i + self.degree)
                 .map(|(_, x)| x)
-                .fold(0.0, |acc, x| acc + *x) / self.degree as f32;
+                .fold(0.0, |acc, x| acc + *x)
+                / self.degree as f32;
             // TODO: Shouldn't this not be necessary? How can I get an abscissa outside
             // the knot domain?
             if g >= domain.0 && g <= domain.1 {
@@ -104,4 +120,3 @@ impl BSplineBasis {
         knots
     }
 }
-

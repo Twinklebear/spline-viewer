@@ -3,16 +3,16 @@
 
 use std::f32;
 
-use glium::{Surface, VertexBuffer, Program, DrawParameters};
 use glium::backend::Facade;
 use glium::index::{NoIndices, PrimitiveType};
+use glium::{DrawParameters, Program, Surface, VertexBuffer};
 use imgui::Ui;
 use rulinalg::matrix::Matrix;
 use rulinalg::vector::Vector;
 
 use bspline::BSpline;
-use bspline_surf::BSplineSurf;
 use bspline_basis::BSplineBasis;
+use bspline_surf::BSplineSurf;
 use display_surf::DisplaySurf;
 use point::Point;
 
@@ -53,26 +53,36 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         let control_points_vbo = VertexBuffer::new(display, &control_points[..]).unwrap();
         let surf = compute_nodal_interpolation(&curves[..], 1);
 
-        DisplaySurfInterpolation { display: display,
-                      curves: curves,
-                      surf: DisplaySurf::new(surf, display),
-                      interpolation_degree: 1,
-                      input_curves_vbo: input_curves_vbo,
-                      input_points_vbo: control_points_vbo,
-                      draw_input_curves: true,
-                      draw_input_points: true,
-                      curve_color: [0.1, 0.8, 0.1],
+        DisplaySurfInterpolation {
+            display: display,
+            curves: curves,
+            surf: DisplaySurf::new(surf, display),
+            interpolation_degree: 1,
+            input_curves_vbo: input_curves_vbo,
+            input_points_vbo: control_points_vbo,
+            draw_input_curves: true,
+            draw_input_points: true,
+            curve_color: [0.1, 0.8, 0.1],
         }
     }
-    pub fn render<S: Surface>(&self, target: &mut S, program: &Program, draw_params: &DrawParameters,
-                  proj_view: &[[f32; 4]; 4], selected: bool, attenuation: f32) {
-        let curve_color =
-            if selected {
-                self.curve_color
-            } else {
-                [attenuation * self.curve_color[0], attenuation * self.curve_color[1],
-                  attenuation * self.curve_color[2]]
-            };
+    pub fn render<S: Surface>(
+        &self,
+        target: &mut S,
+        program: &Program,
+        draw_params: &DrawParameters,
+        proj_view: &[[f32; 4]; 4],
+        selected: bool,
+        attenuation: f32,
+    ) {
+        let curve_color = if selected {
+            self.curve_color
+        } else {
+            [
+                attenuation * self.curve_color[0],
+                attenuation * self.curve_color[1],
+                attenuation * self.curve_color[2],
+            ]
+        };
         let uniforms = uniform! {
             proj_view: *proj_view,
             pcolor: curve_color,
@@ -80,27 +90,62 @@ impl<'a, F: 'a + Facade> DisplaySurfInterpolation<'a, F> {
         // Draw the curve
         if self.draw_input_curves {
             for iso in &self.input_curves_vbo[..] {
-                target.draw(iso, &NoIndices(PrimitiveType::LineStrip),
-                            &program, &uniforms, &draw_params).unwrap();
+                target
+                    .draw(
+                        iso,
+                        &NoIndices(PrimitiveType::LineStrip),
+                        &program,
+                        &uniforms,
+                        &draw_params,
+                    )
+                    .unwrap();
             }
         }
         if self.draw_input_points {
-            target.draw(&self.input_points_vbo, &NoIndices(PrimitiveType::Points),
-                        &program, &uniforms, &draw_params).unwrap();
+            target
+                .draw(
+                    &self.input_points_vbo,
+                    &NoIndices(PrimitiveType::Points),
+                    &program,
+                    &uniforms,
+                    &draw_params,
+                )
+                .unwrap();
         }
-        self.surf.render(target, program, draw_params, proj_view, selected, attenuation);
+        self.surf.render(
+            target,
+            program,
+            draw_params,
+            proj_view,
+            selected,
+            attenuation,
+        );
     }
     pub fn draw_ui(&mut self, ui: &Ui) {
         ui.text(im_str!("3D Surface Interpolation"));
         ui.checkbox(im_str!("Draw Input Curves"), &mut self.draw_input_curves);
-        ui.checkbox(im_str!("Draw Input Control Points"), &mut self.draw_input_points);
-        ui.color_edit3(im_str!("Input Color"), &mut self.curve_color).build();
+        ui.checkbox(
+            im_str!("Draw Input Control Points"),
+            &mut self.draw_input_points,
+        );
+        ui.color_edit3(im_str!("Input Color"), &mut self.curve_color)
+            .build();
         let max_degree = (self.curves.len() - 1) as i32;
         let mut current_degree = self.interpolation_degree as i32;
-        if ui.slider_int(im_str!("Interp. Degree"), &mut current_degree, 1, max_degree).build() {
+        if ui
+            .slider_int(
+                im_str!("Interp. Degree"),
+                &mut current_degree,
+                1,
+                max_degree,
+            )
+            .build()
+        {
             self.interpolation_degree = current_degree as usize;
-            self.surf = DisplaySurf::new(compute_nodal_interpolation(&self.curves[..], self.interpolation_degree),
-                                         self.display);
+            self.surf = DisplaySurf::new(
+                compute_nodal_interpolation(&self.curves[..], self.interpolation_degree),
+                self.display,
+            );
         }
         self.surf.draw_ui(ui);
     }
@@ -121,15 +166,18 @@ fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSpl
     let abscissa_v = basis_v.greville_abscissa();
 
     // This is actually the N matrix in the 12/5 notes.
-    let f = Matrix::from_fn(curves.len(), abscissa_v.len(),
-                            |i, j| basis_v.eval(abscissa_v[j], i));
+    let f = Matrix::from_fn(curves.len(), abscissa_v.len(), |i, j| {
+        basis_v.eval(abscissa_v[j], i)
+    });
     let x_pos: Vec<_> = control_points.iter().map(|x| x.pos[0]).collect();
     let y_pos: Vec<_> = control_points.iter().map(|x| x.pos[1]).collect();
     let z_pos: Vec<_> = control_points.iter().map(|x| x.pos[2]).collect();
     // Are these dimensions right?
-    let r_mats = vec![Matrix::new(curves.len(), curves[0].control_points.len(), x_pos),
-                 Matrix::new(curves.len(), curves[0].control_points.len(), y_pos),
-                 Matrix::new(curves.len(), curves[0].control_points.len(), z_pos)];
+    let r_mats = vec![
+        Matrix::new(curves.len(), curves[0].control_points.len(), x_pos),
+        Matrix::new(curves.len(), curves[0].control_points.len(), y_pos),
+        Matrix::new(curves.len(), curves[0].control_points.len(), z_pos),
+    ];
     let mut result_mats = Vec::with_capacity(r_mats.len());
 
     // Solve each column
@@ -150,11 +198,18 @@ fn compute_nodal_interpolation(curves: &[BSpline<Point>], degree: usize) -> BSpl
     for i in 0..curves.len() {
         let mut mesh_row = Vec::new();
         for j in 0..curves[0].control_points.len() {
-            let p = Point::new(result_mats[0][[i, j]], result_mats[1][[i, j]], result_mats[2][[i, j]]);
+            let p = Point::new(
+                result_mats[0][[i, j]],
+                result_mats[1][[i, j]],
+                result_mats[2][[i, j]],
+            );
             mesh_row.push(p);
         }
         surf_mesh.push(mesh_row);
     }
-    BSplineSurf::new((basis_v.degree(), basis_u.degree()), (basis_v.knots, basis_u.knots), surf_mesh)
+    BSplineSurf::new(
+        (basis_v.degree(), basis_u.degree()),
+        (basis_v.knots, basis_u.knots),
+        surf_mesh,
+    )
 }
-
